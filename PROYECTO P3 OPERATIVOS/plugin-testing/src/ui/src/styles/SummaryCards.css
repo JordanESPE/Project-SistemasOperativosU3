@@ -1,0 +1,157 @@
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 25px;
+  margin-bottom: 40px;
+  animation: fadeIn 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 25px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 5px solid #667eea;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+}
+
+.card:hover {
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-8px);
+}
+
+.card h3 {
+  font-size: 16px;
+  color: #2c3e50;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card h3::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: #667eea;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+}
+
+.stat:last-child {
+  border-bottom: none;
+}
+
+.stat:hover {
+  padding-left: 5px;
+}
+
+.stat .label {
+  color: #7f8c8d;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat .value {
+  color: #2c3e50;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 4px 12px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.value.success {
+  color: #27ae60;
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.value.passed {
+  color: #27ae60;
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.value.failed {
+  color: #e74c3c;
+  background: rgba(244, 67, 54, 0.1);
+}
+
+.overall-card {
+  border-left-color: #764ba2;
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+}
+
+.overall-card h3 {
+  color: #764ba2;
+}
+
+.overall-card h3::before {
+  background: #764ba2;
+}
+
+.card.success {
+  border-left-color: #4CAF50;
+}
+
+.card.danger {
+  border-left-color: #f44336;
+}
+
+@media (max-width: 768px) {
+  .summary-cards {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .overall-card {
+    grid-column: 1;
+  }
+
+  .card {
+    padding: 20px;
+  }
+}

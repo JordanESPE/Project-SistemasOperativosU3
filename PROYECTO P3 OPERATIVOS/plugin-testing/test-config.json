@@ -1,0 +1,83 @@
+{
+  "testConfig": {
+    "baseUrl": "http://localhost:3000",
+    "timeout": 5000,
+    "retries": 2
+  },
+  "functionalTests": {
+    "enabled": true,
+    "tests": [
+      {
+        "name": "Endpoint de Salud",
+        "method": "GET",
+        "endpoint": "/api/health",
+        "expectedStatus": 200
+      },
+      {
+        "name": "Obtener Productos",
+        "method": "GET",
+        "endpoint": "/api/products",
+        "expectedStatus": 200
+      },
+      {
+        "name": "Crear Usuario",
+        "method": "POST",
+        "endpoint": "/api/users",
+        "expectedStatus": 200,
+        "body": {
+          "name": "Test User",
+          "email": "test@example.com"
+        }
+      }
+    ]
+  },
+  "nonFunctionalTests": {
+    "enabled": true,
+    "tests": {
+      "responseTime": {
+        "enabled": true,
+        "threshold": 1000,
+        "unit": "ms"
+      },
+      "errorHandling": {
+        "enabled": true
+      },
+      "cors": {
+        "enabled": true
+      },
+      "dataValidation": {
+        "enabled": true
+      },
+      "serverStatus": {
+        "enabled": true
+      }
+    }
+  },
+  "loadTest": {
+    "enabled": true,
+    "duration": 10,
+    "rps": 10,
+    "endpoints": [
+      "/api/health",
+      "/api/products",
+      "/api/users"
+    ]
+  },
+  "stressTest": {
+    "enabled": true,
+    "maxLoad": 100,
+    "increment": 10,
+    "errorRateThreshold": 30,
+    "endpoints": [
+      "/api/health",
+      "/api/products"
+    ]
+  },
+  "reportGenerator": {
+    "enabled": true,
+    "format": "pdf",
+    "outputDir": "./reports",
+    "includeMetrics": true,
+    "includeCharts": false
+  }
+}

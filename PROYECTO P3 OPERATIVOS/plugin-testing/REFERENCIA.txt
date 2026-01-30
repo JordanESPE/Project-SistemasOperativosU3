@@ -1,0 +1,244 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                 REFERENCIAS RÁPIDAS - Testing Plugin                            ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🎯 ACCESO INMEDIATO
+
+  📂 Carpeta del proyecto:
+     /home/jordan/Escritorio/PROYECTO\ P3\ OPERATIVOS/plugin-testing
+
+  🔥 Ejecutable:
+     ./dist/testing-plugin
+     (o ruta completa: /home/jordan/Escritorio/PROYECTO\ P3\ OPERATIVOS/plugin-testing/dist/testing-plugin)
+
+  🌐 Interfaz web:
+     http://localhost:3002
+
+  💾 Base de datos:
+     ~/.testing-plugin/db/reports.json
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTACIÓN
+
+  INDICE.md
+  ├─ Guía navegación de documentación
+  ├─ Mapa por niveles (principiante, técnico, arquitecto)
+  ├─ Búsqueda rápida por tarea
+  └─ Acceso a todos los archivos
+
+  RESUMEN.md
+  ├─ 7.0 KB | 5 minutos lectura
+  ├─ Visión general completa
+  ├─ Los 4 tipos de tests
+  ├─ Interpretación de resultados
+  └─ ⭐ COMIENZA AQUÍ si es tu primera vez
+
+  INSTALACION.md
+  ├─ 6.9 KB | 10 minutos lectura
+  ├─ Pasos detallados de instalación
+  ├─ Guía de uso de la interfaz
+  ├─ APIs REST disponibles
+  ├─ Solución de problemas
+  └─ ⭐ OBLIGATORIO si tienes problemas
+
+  README.md
+  ├─ 12 KB | 20 minutos lectura
+  ├─ Documentación técnica completa
+  ├─ Estructura de carpetas
+  ├─ Explicación de módulos
+  ├─ APIs endpoints
+  └─ ⭐ Referencia técnica principal
+
+  ARQUITECTURA.md
+  ├─ 18 KB | 15 minutos lectura
+  ├─ Diagramas ASCII del sistema
+  ├─ Estructura técnica detallada
+  ├─ Flujo de datos
+  └─ ⭐ Para arquitectos y desarrolladores
+
+  ESTADO.txt
+  ├─ 16 KB
+  ├─ Vista general del proyecto
+  ├─ Checklist de características
+  ├─ Estructura visual
+  └─ ⭐ Resumen ejecutivo visual
+
+  USO.txt
+  ├─ 942 B | 1 minuto
+  ├─ Recordatorio rápido
+  ├─ Comandos esenciales
+  └─ ⭐ Para cuando necesitas recordar rápido
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+🚀 COMANDOS FRECUENTES
+
+  # Ejecutar el plugin (desde cualquier terminal)
+  ~/Escritorio/PROYECTO\ P3\ OPERATIVOS/plugin-testing/dist/testing-plugin
+
+  # Ejecutar desde la carpeta del proyecto
+  cd ~/Escritorio/PROYECTO\ P3\ OPERATIVOS/plugin-testing
+  ./dist/testing-plugin
+
+  # Ver base de datos (últimos reportes)
+  cat ~/.testing-plugin/db/reports.json | jq .
+
+  # Resetear base de datos
+  rm -rf ~/.testing-plugin
+
+  # Ver logs (si algo falla)
+  tail -f ~/.testing-plugin/logs/error.log
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+🔌 APIs REST
+
+  Obtener último reporte:
+  curl http://localhost:3002/api/latest-report
+
+  Obtener todos los reportes:
+  curl http://localhost:3002/api/reports
+
+  Exportar a PDF:
+  curl -X POST http://localhost:3002/api/export-pdf -o reporte.pdf
+
+  Ver estado del sistema:
+  curl http://localhost:3002/api/status
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+⚙️ PUERTOS
+
+  3002  →  Dashboard web (http://localhost:3002)
+  3001  →  Tienda e-commerce (para tests)
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+🎓 GUÍA DE LECTURA RECOMENDADA
+
+  👶 SIN EXPERIENCIA (15 minutos total)
+     1. Lee: RESUMEN.md (5 min)
+     2. Ejecuta: ./dist/testing-plugin
+     3. Abre: http://localhost:3002
+     4. Disfruta resultados
+
+  👨‍💻 USUARIO TÉCNICO (30 minutos total)
+     1. Lee: RESUMEN.md (5 min)
+     2. Lee: INSTALACION.md (10 min)
+     3. Lee: README.md secciones relevantes (15 min)
+     4. Experimenta con APIs
+
+  🏗️ ARQUITECTO (60+ minutos)
+     1. Lee: RESUMEN.md (5 min)
+     2. Lee: ARQUITECTURA.md (15 min)
+     3. Lee: README.md completo (20 min)
+     4. Estudia código en src/
+     5. Personaliza según necesidades
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+🔧 CONFIGURACIÓN
+
+  test-config.json
+  ├─ Configuración de tests
+  ├─ Parámetros de carga
+  ├─ URLs de endpoints
+  └─ Editable para personalización
+
+  src/ui/package.json
+  ├─ Dependencias del frontend
+  ├─ Scripts de build
+  └─ Versiones de librerías
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+📊 CARACTERÍSTICAS PRINCIPALES
+
+  ✅ 4 Tipos de Tests
+     • Funcionales: Validan features
+     • No-Funcionales: Usabilidad e interfaz
+     • Carga: Múltiples usuarios
+     • Estrés: Límites del sistema
+
+  ✅ Dashboard Interactivo
+     • Gráficos en tiempo real (Pie, Bar, Area)
+     • Cards de suites con métricas
+     • Tabla detallada de resultados
+     • Exportación a PDF
+
+  ✅ APIs REST
+     • Integración fácil con otros sistemas
+     • JSON responses
+     • Endpoints documentados
+
+  ✅ Base de Datos Local
+     • Almacena histórico de reportes
+     • JSON nativo (sin SQL)
+     • Acceso directo
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+⏱️ TIEMPOS
+
+  Ejecución total:    ~20-25 segundos
+  Dashboard:          ~2 segundos refresh
+  Descarga PDF:       ~5 segundos
+  Startup:            ~3 segundos
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+💾 ALMACENAMIENTO
+
+  Reportes:           ~/.testing-plugin/db/reports.json
+  Límite histórico:   Últimos 100 reportes
+  Tamaño BD típica:   100-500 KB
+  Resetear:           rm -rf ~/.testing-plugin
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+🆘 SOLUCIÓN DE PROBLEMAS RÁPIDA
+
+  ❌ "Puerto 3002 en uso"
+  └─ Ver archivo: INSTALACION.md → Solución de Problemas
+
+  ❌ "No se abre navegador"
+  └─ Accede manual: http://localhost:3002
+
+  ❌ "Tests no ejecutan"
+  └─ Ver: INSTALACION.md → Verificación
+  └─ Check: puerto 3001 disponible
+
+  ❌ "Base de datos corrupta"
+  └─ rm -rf ~/.testing-plugin (resetea todo)
+
+  ❌ Otros problemas
+  └─ Ver completo: INSTALACION.md
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+📝 NOTAS IMPORTANTES
+
+  • Requiere Linux (x64)
+  • Ejecutable es auto-contenido (no requiere Node.js)
+  • Datos se guardan automáticamente
+  • Tests se ejecutan automáticamente al iniciar
+  • Interface responde a cambios en tiempo real
+  • PDF incluye todos los gráficos y resultados
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+✨ INFORMACIÓN DEL PROYECTO
+
+  Versión:       1.0
+  Plataforma:    Linux x64
+  Tamaño exe:    48 MB
+  Documentación: 74 KB (7 archivos)
+  Estado:        ✅ Productivo
+  Última update: 29 Enero 2026
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🎯 SIGUIENTE PASO: Lee INDICE.md o ejecuta ./dist/testing-plugin
+
+═════════════════════════════════════════════════════════════════════════════════
