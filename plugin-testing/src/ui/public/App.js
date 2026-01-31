@@ -9,12 +9,37 @@ function App() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isRunningTests, setIsRunningTests] = useState(false);
 
   useEffect(() => {
     loadLatestReport();
-    const interval = setInterval(loadLatestReport, 2000);
+    checkTestStatus();
+    const interval = setInterval(() => {
+      loadLatestReport();
+      checkTestStatus();
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  const checkTestStatus = async () => {
+    try {
+      const response = await fetch('http://localhost:3002/api/status');
+      const data = await response.json();
+      setIsRunningTests(data.running);
+    } catch (err) {
+      // Ignore errors
+    }
+  };
+
+  const handleRunTests = async () => {
+    setIsRunningTests(true);
+    try {
+      await fetch('http://localhost:3002/api/run-tests', { method: 'POST' });
+    } catch (err) {
+      console.error('Error starting tests:', err);
+      setIsRunningTests(false);
+    }
+  };
 
   const loadLatestReport = async () => {
     try {
@@ -81,6 +106,20 @@ function App() {
 
   return (
     <div className="app">
+      {/* Loading Modal */}
+      {isRunningTests && (
+        <div className="loading-modal-overlay">
+          <div className="loading-modal">
+            <div className="loading-spinner-large"></div>
+            <h2>Ejecutando Pruebas...</h2>
+            <p>Por favor espere mientras se ejecutan todas las pruebas</p>
+            <div className="loading-progress">
+              <div className="progress-bar-animated"></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="app-header">
         <div className="header-content">
@@ -286,11 +325,20 @@ function App() {
 
             {/* Actions */}
             <section className="dashboard-section actions">
-              <button onClick={handleExportPDF} className="btn-export">
-                📄 Export PDF Report
-              </button>
+              <div className="action-buttons">
+                <button 
+                  onClick={handleRunTests} 
+                  className="btn-refresh"
+                  disabled={isRunningTests}
+                >
+                  🔄 {isRunningTests ? 'Ejecutando...' : 'Re-ejecutar Pruebas'}
+                </button>
+                <button onClick={handleExportPDF} className="btn-export">
+                  📄 Exportar PDF
+                </button>
+              </div>
               <p className="timestamp">
-                Generated: {reportData.generatedAt}
+                Generado: {reportData.generatedAt}
               </p>
             </section>
           </div>

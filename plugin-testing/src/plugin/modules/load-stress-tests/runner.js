@@ -106,31 +106,37 @@ class LoadStressTestRunner {
   }
 
   generateLoadReport(requests, errors, totalTime, responseTimes) {
+    const successfulRequests = Math.max(0, requests - errors);
+    const totalRequests = Math.max(requests, errors); // En caso de que requests sea 0 pero haya errores
+    
     const avgTime = responseTimes.length > 0 
       ? totalTime / responseTimes.length 
       : 0;
 
     responseTimes.sort((a, b) => a - b);
-    const p95 = responseTimes[Math.floor(responseTimes.length * 0.95)];
-    const p99 = responseTimes[Math.floor(responseTimes.length * 0.99)];
+    const p95 = responseTimes.length > 0 ? responseTimes[Math.floor(responseTimes.length * 0.95)] : 0;
+    const p99 = responseTimes.length > 0 ? responseTimes[Math.floor(responseTimes.length * 0.99)] : 0;
+    const maxTime = responseTimes.length > 0 ? Math.max(...responseTimes) : 0;
+    const minTime = responseTimes.length > 0 ? Math.min(...responseTimes) : 0;
+    const errorRate = totalRequests > 0 ? ((errors / totalRequests) * 100).toFixed(2) : '0.00';
 
     return {
       type: 'LOAD_TEST',
       timestamp: new Date().toISOString(),
       summary: {
-        totalRequests: requests,
-        successfulRequests: requests - errors,
+        totalRequests: totalRequests,
+        successfulRequests: successfulRequests,
         failedRequests: errors,
-        errorRate: ((errors / requests) * 100).toFixed(2) + '%',
+        errorRate: errorRate + '%',
         duration: ((Date.now() - this.startTime) / 1000).toFixed(2) + 's'
       },
       metrics: {
         avgResponseTime: avgTime.toFixed(2) + 'ms',
-        maxResponseTime: Math.max(...responseTimes) + 'ms',
-        minResponseTime: Math.min(...responseTimes) + 'ms',
-        p95: p95 + 'ms',
-        p99: p99 + 'ms',
-        requestsPerSecond: (requests / ((Date.now() - this.startTime) / 1000)).toFixed(2)
+        maxResponseTime: maxTime.toFixed(2) + 'ms',
+        minResponseTime: minTime > 0 ? minTime.toFixed(2) + 'ms' : '0.00ms',
+        p95: p95 > 0 ? p95.toFixed(2) + 'ms' : '0.00ms',
+        p99: p99 > 0 ? p99.toFixed(2) + 'ms' : '0.00ms',
+        requestsPerSecond: totalRequests > 0 ? (totalRequests / ((Date.now() - this.startTime) / 1000)).toFixed(2) : '0.00'
       }
     };
   }

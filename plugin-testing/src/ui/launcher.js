@@ -43,6 +43,9 @@ function writeDatabase(data) {
 
 initDatabase();
 
+// Variable para rastrear si las pruebas están ejecutándose
+let isRunningTests = false;
+
 app.use(express.json({ limit: '50mb' }));
 // Servir archivos estáticos desde la carpeta build del proyecto
 const buildPath = '/home/jordan/Escritorio/PROYECTO P3 OPERATIVOS/plugin-testing/src/ui/build';
@@ -84,58 +87,49 @@ app.post('/api/reports', (req, res) => {
   res.json({ id: newReport.id, success: true });
 });
 
-// API: Exportar PDF
-app.post('/api/export-pdf', (req, res) => {
+// API: Estado de ejecución
+app.get('/api/status', (req, res) => {
+  res.json({ running: isRunningTests });
+});
+
+// API: Re-ejecutar pruebas
+app.post('/api/run-tests', async (req, res) => {
+  if (isRunningTests) {
+    return res.json({ success: false, message: 'Tests already running' });
+  }
+  
+  isRunningTests = true;
+  res.json({ success: true, message: 'Tests started' });
+  
+  // Ejecutar pruebas en background
+  runTestsAsync();
+});
+
+// API: Exportar PDF - Usa el generador profesional
+app.post('/api/export-pdf', async (req, res) => {
   try {
-    const { PDFDocument } = require('pdfkit');
+    const generatorPath = path.join(__dirname, '..', 'plugin', 'modules', 'report-generator', 'generator');
+    const ReportGenerator = require(generatorPath);
     const reportData = req.body;
-
-    const doc = new PDFDocument({ margin: 40 });
-    const filename = `test-report-${Date.now()}.pdf`;
-    const filepath = path.join(REPORTS_DIR, filename);
-
-    const stream = fs.createWriteStream(filepath);
-    doc.pipe(stream);
-
-    // Encabezado
-    doc.fontSize(24).font('Helvetica-Bold').text('TEST REPORT', { align: 'center' });
-    doc.fontSize(10).font('Helvetica').text(new Date().toLocaleString('es-ES'), { align: 'center' });
-    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-    doc.moveDown(1);
-
-    // Resumen
-    doc.fontSize(14).font('Helvetica-Bold').text('SUMMARY');
-    doc.moveDown(0.5);
-
-    if (reportData.summary && reportData.summary.tests) {
-      doc.fontSize(10).font('Helvetica');
-      reportData.summary.tests.forEach(test => {
-        doc.text(`${test.type}: ${test.status} (${test.successRate})`);
+    
+    // Crear generador con directorio temporal
+    const generator = new ReportGenerator(REPORTS_DIR);
+    
+    // Si tenemos details, usar directamente
+    if (reportData.details && reportData.details.length > 0) {
+      const result = await generator.generateReport(reportData.details);
+      
+      // Enviar el PDF generado
+      res.download(result.pdf, path.basename(result.pdf), (err) => {
+        if (err) {
+          console.error('Error sending PDF:', err);
+        }
       });
+    } else {
+      res.status(400).json({ error: 'No hay datos de pruebas disponibles' });
     }
-
-    doc.moveDown(1);
-    doc.fontSize(12).font('Helvetica-Bold').text('OVERALL RESULTS');
-    doc.fontSize(10).font('Helvetica');
-    if (reportData.summary && reportData.summary.overall) {
-      const overall = reportData.summary.overall;
-      doc.text(`Total Tests: ${overall.totalTests}`);
-      doc.text(`Passed: ${overall.totalPassed}`);
-      doc.text(`Failed: ${overall.totalFailed}`);
-    }
-
-    doc.end();
-
-    stream.on('finish', () => {
-      res.download(filepath, filename, (err) => {
-        if (!err) fs.unlinkSync(filepath);
-      });
-    });
-
-    stream.on('error', (err) => {
-      res.status(500).json({ error: err.message });
-    });
   } catch (error) {
+    console.error('Error generating PDF:', error);
     res.status(500).json({ error: error.message });
   }
 });
