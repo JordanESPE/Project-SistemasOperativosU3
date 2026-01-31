@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
@@ -82,6 +82,33 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
   }
+});
+
+// IPC Handlers for directory selection
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select Directory to Scan for Projects'
+  });
+  
+  if (result.canceled) {
+    return { canceled: true };
+  }
+  
+  return { canceled: false, path: result.filePaths[0] };
+});
+
+ipcMain.handle('select-project-directory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select Project Directory'
+  });
+  
+  if (result.canceled) {
+    return { canceled: true };
+  }
+  
+  return { canceled: false, path: result.filePaths[0] };
 });
 
 // IPC Handlers for PDF export

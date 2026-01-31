@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReportViewer from './components/ReportViewer';
+import ProjectLoader from './components/ProjectLoader';
 import './App.css';
 
 function App() {
@@ -7,6 +8,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [testRunning, setTestRunning] = useState(false);
+  const [activeTab, setActiveTab] = useState('loader'); // 'loader' or 'reports'
+  const [loadedProject, setLoadedProject] = useState(null);
 
   useEffect(() => {
     loadLatestReport();
@@ -56,6 +59,16 @@ function App() {
     }
   };
 
+  const handleProjectLoaded = (project) => {
+    setLoadedProject(project);
+  };
+
+  const handleTestsComplete = () => {
+    setTestRunning(false);
+    loadLatestReport();
+    setActiveTab('reports');
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -63,8 +76,13 @@ function App() {
           <div className="logo-section">
             <h1>⚡ Testing Plugin</h1>
             <p>Visual Report Viewer & Analyzer</p>
+            {loadedProject && (
+              <span className="loaded-project-badge">
+                📦 {loadedProject.name}
+              </span>
+            )}
           </div>
-          {reportData && (
+          {reportData && activeTab === 'reports' && (
             <div className="header-stats">
               <div className="stat-badge">
                 <span className="stat-label">Tests</span>
@@ -82,34 +100,61 @@ function App() {
           )}
         </div>
         <div className="header-actions">
-          <button className="btn btn-refresh" onClick={loadLatestReport} disabled={testRunning}>
-            🔄 Refresh
-          </button>
-          <button className="btn btn-export" onClick={handleExportPDF} disabled={!reportData || testRunning}>
-            📥 Export PDF
-          </button>
+          <div className="tab-buttons">
+            <button 
+              className={`btn btn-tab ${activeTab === 'loader' ? 'active' : ''}`}
+              onClick={() => setActiveTab('loader')}
+            >
+              📁 Load Project
+            </button>
+            <button 
+              className={`btn btn-tab ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reports')}
+            >
+              📊 View Reports
+            </button>
+          </div>
+          {activeTab === 'reports' && (
+            <>
+              <button className="btn btn-refresh" onClick={loadLatestReport} disabled={testRunning}>
+                🔄 Refresh
+              </button>
+              <button className="btn btn-export" onClick={handleExportPDF} disabled={!reportData || testRunning}>
+                📥 Export PDF
+              </button>
+            </>
+          )}
         </div>
       </header>
 
       <main className="app-main">
-        {loading && !reportData ? (
-          <div className="loading-container">
-            <div className="spinner"></div>
-            <p>Loading reports...</p>
-          </div>
-        ) : error && !reportData ? (
-          <div className="status-message waiting">
-            <div className="pulse"></div>
-            <h2>{error}</h2>
-            <p>The application is waiting for test execution to complete...</p>
-          </div>
-        ) : reportData ? (
-          <ReportViewer data={reportData} />
+        {activeTab === 'loader' ? (
+          <ProjectLoader 
+            onProjectLoaded={handleProjectLoaded}
+            onTestsComplete={handleTestsComplete}
+          />
         ) : (
-          <div className="status-message empty">
-            <h2>No Reports Available</h2>
-            <p>Run tests to generate reports</p>
-          </div>
+          <>
+            {loading && !reportData ? (
+              <div className="loading-container">
+                <div className="spinner"></div>
+                <p>Loading reports...</p>
+              </div>
+            ) : error && !reportData ? (
+              <div className="status-message waiting">
+                <div className="pulse"></div>
+                <h2>{error}</h2>
+                <p>The application is waiting for test execution to complete...</p>
+              </div>
+            ) : reportData ? (
+              <ReportViewer data={reportData} />
+            ) : (
+              <div className="status-message empty">
+                <h2>No Reports Available</h2>
+                <p>Run tests to generate reports</p>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
