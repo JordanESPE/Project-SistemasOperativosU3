@@ -7,9 +7,15 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
   const [error, setError] = useState(null);
   const [testStatus, setTestStatus] = useState({ running: false, progress: '', logs: [] });
   const [serverStatus, setServerStatus] = useState({ running: false, port: null });
-  const [manualPath, setManualPath] = useState('');
   const [manualUrl, setManualUrl] = useState('http://localhost:3001');
   const [selectedTestType, setSelectedTestType] = useState('all');
+  
+  // Estado para el explorador de archivos visual
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
+  const [browserPath, setBrowserPath] = useState('/home');
+  const [browserItems, setBrowserItems] = useState([]);
+  const [browserLoading, setBrowserLoading] = useState(false);
+  const [isElectron] = useState(() => !!window.electronAPI?.selectProjectDirectory);
 
   // Polling para estado de tests
   useEffect(() => {
@@ -41,12 +47,53 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
           await loadProject(result.path);
         }
       } else {
-        // Fallback: usar input manual
-        setError('Use the manual path input below');
+        // En navegador web, abrir el explorador visual
+        setShowFileBrowser(true);
+        await browseDirectory('/home');
       }
     } catch (err) {
       setError('Error selecting directory: ' + err.message);
     }
+  };
+
+  // Función para navegar por directorios (explorador visual)
+  const browseDirectory = async (dirPath) => {
+    setBrowserLoading(true);
+    try {
+      const response = await fetch(`http://localhost:3002/api/browse?path=${encodeURIComponent(dirPath)}`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        setBrowserPath(data.currentPath);
+        setBrowserItems(data.items || []);
+      } else {
+        setError(data.error || 'Error browsing directory');
+      }
+    } catch (err) {
+      setError('Error browsing directory: ' + err.message);
+    } finally {
+      setBrowserLoading(false);
+    }
+  };
+
+  // Función para seleccionar un proyecto desde el explorador
+  const handleBrowserSelect = async (item) => {
+    if (item.isDirectory) {
+      if (item.isProject) {
+        // Es un proyecto, cargarlo
+        setShowFileBrowser(false);
+        await loadProject(item.path);
+      } else {
+        // Es una carpeta, navegar a ella
+        await browseDirectory(item.path);
+      }
+    }
+  };
+
+  // Función para ir al directorio padre
+  const handleBrowserBack = async () => {
+    const parentPath = browserPath.split('/').slice(0, -1).join('/') || '/';
+    await browseDirectory(parentPath);
   };
 
   const loadProject = async (projectPath) => {
@@ -77,12 +124,6 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleManualLoad = async () => {
-    if (manualPath.trim()) {
-      await loadProject(manualPath.trim());
     }
   };
 
@@ -169,24 +210,62 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
           >
             📂 Browse for Project
           </button>
-          
-          <div className="manual-input">
-            <input
-              type="text"
-              placeholder="Or enter project path manually..."
-              value={manualPath}
-              onChange={(e) => setManualPath(e.target.value)}
-              disabled={loading || testStatus.running}
-            />
-            <button 
-              className="btn btn-secondary"
-              onClick={handleManualLoad}
-              disabled={loading || testStatus.running || !manualPath.trim()}
-            >
-              Load
-            </button>
-          </div>
         </div>
+
+        {/* Explorador de archivos visual (solo en web) */}
+        {showFileBrowser && !isElectron && (
+          <div className="file-browser">
+            <div className="browser-header">
+              <button 
+                className="btn btn-small"
+                onClick={handleBrowserBack}
+                disabled={browserLoading || browserPath === '/'}
+              >
+                ⬆️ Back
+              </button>
+              <span className="browser-path">{browserPath}</span>
+              <button 
+                className="btn btn-small btn-secondary"
+                onClick={() => setShowFileBrowser(false)}
+              >
+                ✕ Close
+              </button>
+            </div>
+            
+            <div className="browser-content">
+              {browserLoading ? (
+                <div className="browser-loading">
+                  <div className="spinner-small"></div>
+                  <span>Loading...</span>
+                </div>
+              ) : browserItems.length === 0 ? (
+                <div className="browser-empty">No items found</div>
+              ) : (
+                <ul className="browser-list">
+                  {browserItems.map((item, index) => (
+                    <li 
+                      key={index}
+                      className={`browser-item ${item.isDirectory ? 'folder' : 'file'} ${item.isProject ? 'project' : ''}`}
+                      onClick={() => handleBrowserSelect(item)}
+                    >
+                      <span className="item-icon">
+                        {item.isProject ? '📦' : item.isDirectory ? '📁' : '📄'}
+                      </span>
+                      <span className="item-name">{item.name}</span>
+                      {item.isProject && (
+                        <span className="item-badge">Node.js Project</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            
+            <div className="browser-hint">
+              💡 Click on a folder to navigate. Click on a <strong>📦 Node.js Project</strong> to load it.
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="error-message">

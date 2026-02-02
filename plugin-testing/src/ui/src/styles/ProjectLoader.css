@@ -445,3 +445,165 @@
     margin-bottom: 10px;
   }
 }
+
+/* ============================================
+   EXPLORADOR DE ARCHIVOS VISUAL
+   ============================================ */
+
+.file-browser {
+  margin-top: 20px;
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.browser-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  color: white;
+}
+
+.browser-path {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.btn-small:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.btn-small:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.browser-content {
+  max-height: 350px;
+  overflow-y: auto;
+  background: #fafbfc;
+}
+
+.browser-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px;
+  color: var(--primary);
+}
+
+.browser-empty {
+  padding: 40px;
+  text-align: center;
+  color: #7f8c8d;
+}
+
+.browser-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.browser-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 15px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.browser-item:last-child {
+  border-bottom: none;
+}
+
+.browser-item:hover {
+  background: #e8f4fc;
+}
+
+.browser-item.project {
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+.browser-item.project:hover {
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+}
+
+.item-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+}
+
+.item-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-item.project .item-name {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.item-badge {
+  font-size: 11px;
+  background: var(--success);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.browser-hint {
+  padding: 12px 15px;
+  background: #fff9e6;
+  border-top: 1px solid #ffe58f;
+  font-size: 13px;
+  color: #8a6d3b;
+}
+
+/* Scrollbar personalizado para el explorador */
+.browser-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.browser-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.browser-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.browser-content::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
