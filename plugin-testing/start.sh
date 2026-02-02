@@ -28,14 +28,14 @@ start_servers() {
     ECOMMERCE_PID=$!
     sleep 2
 
-    echo "→ Iniciando servidor del plugin (puerto 3002)..."
-    cd "$UI_DIR" && node launcher.js &
+    echo "→ Iniciando Plugin con Electron (puerto 3002)..."
+    cd "$BASE_DIR" && npm run ui:electron &
     PLUGIN_PID=$!
     
     echo ""
     echo "✓ Servidores iniciados correctamente"
     echo "  - E-commerce: http://localhost:3001"
-    echo "  - Plugin UI:  http://localhost:3002"
+    echo "  - Plugin UI:  Electron App (puerto 3002)"
     echo ""
     echo "Presiona Ctrl+C para detener los servidores"
 }

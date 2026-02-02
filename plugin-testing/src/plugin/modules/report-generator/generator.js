@@ -46,9 +46,35 @@ class ReportGenerator {
   }
 
   generateSummary(testResults) {
+    // Calcular totales correctamente:
+    // - Funcionales y No Funcionales: contar cada prueba individual
+    // - Load y Stress: contar como 1 prueba cada uno
     let totalTests = 0;
     let totalPassed = 0;
     let totalFailed = 0;
+
+    testResults.forEach(r => {
+      if (r.type === 'FUNCTIONAL_TESTS' || r.type === 'NON_FUNCTIONAL_TESTS') {
+        totalTests += r.summary.total || 0;
+        totalPassed += r.summary.passed || 0;
+        totalFailed += r.summary.failed || 0;
+      } else if (r.type === 'LOAD_TEST') {
+        totalTests += 1;
+        const errorRate = parseFloat(r.summary.errorRate) || 0;
+        if (errorRate < 10) {
+          totalPassed += 1;
+        } else {
+          totalFailed += 1;
+        }
+      } else if (r.type === 'STRESS_TEST') {
+        totalTests += 1;
+        if (!r.summary.systemLimitReached) {
+          totalPassed += 1;
+        } else {
+          totalFailed += 1;
+        }
+      }
+    });
 
     return {
       tests: testResults.map(result => ({
@@ -58,9 +84,9 @@ class ReportGenerator {
         duration: result.summary.duration
       })),
       overall: {
-        totalTests: testResults.reduce((acc, r) => acc + (r.summary.total || 0), 0),
-        totalPassed: testResults.reduce((acc, r) => acc + (r.summary.passed || 0), 0),
-        totalFailed: testResults.reduce((acc, r) => acc + (r.summary.failed || 0), 0)
+        totalTests,
+        totalPassed,
+        totalFailed
       }
     };
   }
@@ -168,6 +194,8 @@ class ReportGenerator {
     doc.moveDown(2.5);
 
     // Calcular estadísticas totales
+    // Solo contar pruebas funcionales y no funcionales como pruebas individuales
+    // Load y Stress tests cuentan como 1 prueba cada uno (no por request)
     let totalTests = 0;
     let totalPassed = 0;
     let totalFailed = 0;
@@ -182,13 +210,22 @@ class ReportGenerator {
         totalPassed += passed;
         totalFailed += failed;
       } else if (r.type === 'LOAD_TEST') {
-        const total = r.summary.totalRequests || 0;
-        const successful = Math.max(0, r.summary.successfulRequests || 0);
-        const failed = r.summary.failedRequests || 0;
-        
-        totalTests += total;
-        totalPassed += successful;
-        totalFailed += failed;
+        // Contar como 1 prueba de carga, no por cada request
+        totalTests += 1;
+        const errorRate = parseFloat(r.summary.errorRate) || 0;
+        if (errorRate < 10) {
+          totalPassed += 1;
+        } else {
+          totalFailed += 1;
+        }
+      } else if (r.type === 'STRESS_TEST') {
+        // Contar como 1 prueba de estrés
+        totalTests += 1;
+        if (!r.summary.systemLimitReached) {
+          totalPassed += 1;
+        } else {
+          totalFailed += 1;
+        }
       }
     });
     

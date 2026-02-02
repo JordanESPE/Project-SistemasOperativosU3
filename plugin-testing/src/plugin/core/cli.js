@@ -5,6 +5,10 @@ const TestExecutor = require('./executor');
 const args = process.argv.slice(2);
 const baseUrl = process.env.BASE_URL || 'http://localhost:3001';
 
+// Log para depuración - mostrar la URL que se está usando
+console.log(`\n[CONFIG] Testing against: ${baseUrl}`);
+console.log(`[CONFIG] BASE_URL env: ${process.env.BASE_URL || '(not set, using default)'}\n`);
+
 async function main() {
   const executor = new TestExecutor(baseUrl);
 

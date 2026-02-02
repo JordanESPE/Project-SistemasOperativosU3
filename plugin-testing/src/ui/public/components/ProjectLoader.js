@@ -228,6 +228,9 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                 placeholder="http://localhost:3001"
               />
             </div>
+            <div className="config-info" style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>
+              ⚠️ Asegúrate de que el servidor del backend esté corriendo en esta URL antes de ejecutar las pruebas
+            </div>
             
             {project.hasServer && (
               <div className="config-row">

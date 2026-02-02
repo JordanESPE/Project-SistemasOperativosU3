@@ -3,6 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
 const { spawn, exec } = require('child_process');
+const PDFDocument = require('pdfkit');
+
+// Importar el generador de reportes profesional
+const ReportGenerator = require('../plugin/modules/report-generator/generator');
 
 const app = express();
 const PORT = 3002;
@@ -168,6 +172,8 @@ app.post('/api/project/load', (req, res) => {
       return res.status(404).json({ error: 'Project path does not exist' });
     }
 
+    console.log(`\n[LOAD PROJECT] Loading: ${projectPath}`);
+
     // Verificar si tiene package.json (proyecto Node.js)
     const packageJsonPath = path.join(projectPath, 'package.json');
     let projectInfo = {
@@ -176,7 +182,7 @@ app.post('/api/project/load', (req, res) => {
       type: 'unknown',
       hasServer: false,
       serverFile: null,
-      port: null
+      port: 3001  // Puerto por defecto
     };
 
     if (fs.existsSync(packageJsonPath)) {
@@ -194,16 +200,30 @@ app.post('/api/project/load', (req, res) => {
           projectInfo.hasServer = true;
           projectInfo.serverFile = serverFile;
           
-          // Intentar detectar puerto
+          // Intentar detectar puerto con múltiples patrones
           const serverContent = fs.readFileSync(serverPath, 'utf8');
-          const portMatch = serverContent.match(/(?:PORT|port)\s*(?:=|:)\s*(\d+)/);
-          if (portMatch) {
-            projectInfo.port = parseInt(portMatch[1]);
+          // Patrones: PORT = 3000, port: 3000, || 3000, listen(3000)
+          const portPatterns = [
+            /(?:PORT|port)\s*(?:=|:)\s*(\d+)/,
+            /\|\|\s*(\d{4})/,  // || 3000
+            /listen\s*\(\s*(\d+)/,  // listen(3000)
+            /\.env\.PORT.*?(\d{4})/  // process.env.PORT || 3000
+          ];
+          
+          for (const pattern of portPatterns) {
+            const portMatch = serverContent.match(pattern);
+            if (portMatch) {
+              projectInfo.port = parseInt(portMatch[1]);
+              console.log(`[LOAD PROJECT] Detected port: ${projectInfo.port} from ${serverFile}`);
+              break;
+            }
           }
           break;
         }
       }
     }
+
+    console.log(`[LOAD PROJECT] Project info:`, JSON.stringify(projectInfo, null, 2));
 
     // Buscar archivos HTML (proyecto frontend)
     const htmlFiles = ['index.html', 'src/index.html', 'public/index.html', 'src/frontend/index.html'];
@@ -307,6 +327,14 @@ app.post('/api/project/run-tests', (req, res) => {
     const { testType, baseUrl } = req.body;
     const targetUrl = baseUrl || `http://localhost:${loadedProject?.port || 3001}`;
 
+    // Log para depuración
+    console.log('\n========================================');
+    console.log('[DEBUG] Run Tests Request:');
+    console.log(`  - Received baseUrl: ${baseUrl}`);
+    console.log(`  - Using targetUrl: ${targetUrl}`);
+    console.log(`  - loadedProject port: ${loadedProject?.port}`);
+    console.log('========================================\n');
+
     testStatus = { running: true, progress: 'Starting tests...', logs: [] };
 
     const cliPath = path.join(PLUGIN_DIR, 'cli.js');
@@ -363,8 +391,8 @@ app.post('/api/project/cancel-tests', (req, res) => {
   res.json({ success: true, message: 'Tests cancelled' });
 });
 
-// Exportar reporte como PDF (genera HTML para imprimir)
-app.post('/api/export-pdf', (req, res) => {
+// Exportar reporte como PDF usando el generador profesional
+app.post('/api/export-pdf', async (req, res) => {
   try {
     const reportData = req.body;
     
@@ -372,132 +400,83 @@ app.post('/api/export-pdf', (req, res) => {
       return res.status(400).json({ error: 'No report data provided' });
     }
 
-    const summary = reportData.summary || {};
-    const details = reportData.details || {};
-    const overall = summary.overall || {};
-    const tests = summary.tests || [];
+    // Convertir el formato del reporte de la UI al formato esperado por el generador
+    const testResults = [];
+    
+    // Si tiene details como array (formato del JSON guardado)
+    if (Array.isArray(reportData.details)) {
+      testResults.push(...reportData.details);
+    } 
+    // Si tiene details como objeto (formato de la UI)
+    else if (reportData.details && typeof reportData.details === 'object') {
+      Object.entries(reportData.details).forEach(([type, data]) => {
+        testResults.push({
+          type: type.toUpperCase(),
+          timestamp: data.timestamp || new Date().toISOString(),
+          summary: data.summary || {
+            total: data.tests?.length || 0,
+            passed: data.tests?.filter(t => t.status === 'passed' || t.passed).length || 0,
+            failed: data.tests?.filter(t => t.status === 'failed' || !t.passed).length || 0,
+            successRate: data.successRate || 'N/A',
+            duration: data.duration || 'N/A'
+          },
+          details: data.tests || []
+        });
+      });
+    }
+    
+    // Si también tiene summary.tests, usarlos para completar información
+    if (reportData.summary?.tests && testResults.length === 0) {
+      reportData.summary.tests.forEach(test => {
+        testResults.push({
+          type: test.type || 'TEST',
+          timestamp: new Date().toISOString(),
+          summary: {
+            total: parseInt(test.status?.split('/')[1]) || 0,
+            passed: parseInt(test.status?.split('/')[0]) || 0,
+            failed: (parseInt(test.status?.split('/')[1]) || 0) - (parseInt(test.status?.split('/')[0]) || 0),
+            successRate: test.successRate || 'N/A',
+            duration: test.duration || 'N/A'
+          },
+          details: []
+        });
+      });
+    }
 
-    // Generar HTML para el PDF
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Reporte de Pruebas - ${new Date().toLocaleDateString('es-ES')}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
-    .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #6c5ce7; }
-    .header h1 { color: #6c5ce7; font-size: 28px; margin-bottom: 10px; }
-    .header p { color: #666; font-size: 14px; }
-    .summary-section { margin-bottom: 40px; }
-    .summary-section h2 { color: #2d3436; font-size: 20px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #dfe6e9; }
-    .overall-stats { display: flex; justify-content: space-around; background: linear-gradient(135deg, #6c5ce7, #a29bfe); padding: 30px; border-radius: 12px; color: white; margin-bottom: 30px; }
-    .stat-box { text-align: center; }
-    .stat-box .value { font-size: 36px; font-weight: bold; display: block; }
-    .stat-box .label { font-size: 14px; opacity: 0.9; }
-    .tests-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-    .test-card { background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #6c5ce7; }
-    .test-card h3 { color: #2d3436; font-size: 16px; margin-bottom: 15px; text-transform: capitalize; }
-    .test-card .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #dfe6e9; font-size: 14px; }
-    .test-card .stat:last-child { border-bottom: none; }
-    .test-card .stat .label { color: #636e72; }
-    .test-card .stat .value { font-weight: 600; }
-    .test-card .stat .value.passed { color: #00b894; }
-    .test-card .stat .value.failed { color: #d63031; }
-    .details-section { margin-top: 40px; page-break-before: always; }
-    .details-section h2 { color: #2d3436; font-size: 20px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #dfe6e9; }
-    .detail-group { margin-bottom: 30px; }
-    .detail-group h3 { color: #6c5ce7; font-size: 16px; margin-bottom: 15px; }
-    .test-list { list-style: none; }
-    .test-list li { padding: 10px 15px; background: #f8f9fa; margin-bottom: 8px; border-radius: 6px; display: flex; align-items: center; font-size: 14px; }
-    .test-list li .status { margin-right: 12px; font-size: 16px; }
-    .test-list li .name { flex: 1; }
-    .test-list li .duration { color: #636e72; font-size: 12px; }
-    .footer { margin-top: 50px; text-align: center; color: #636e72; font-size: 12px; padding-top: 20px; border-top: 1px solid #dfe6e9; }
-    @media print { body { padding: 20px; } .overall-stats { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>⚡ Reporte de Pruebas</h1>
-    <p>Generado el ${new Date().toLocaleString('es-ES')}</p>
-  </div>
+    // Crear instancia del generador con directorio temporal
+    const tempDir = path.join(__dirname, '../../temp-exports');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const generator = new ReportGenerator(tempDir);
+    const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+    
+    // Generar el PDF usando el generador profesional
+    const pdfPath = await generator.generatePDF(testResults, timestamp);
+    
+    // Leer el PDF generado y enviarlo como respuesta
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    
+    // Configurar headers para descarga
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="test-report-${timestamp}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    // Enviar el PDF
+    res.send(pdfBuffer);
+    
+    // Limpiar archivo temporal después de enviar
+    setTimeout(() => {
+      try {
+        fs.unlinkSync(pdfPath);
+      } catch (e) {
+        // Ignorar errores de limpieza
+      }
+    }, 5000);
 
-  <div class="summary-section">
-    <h2>📊 Resumen General</h2>
-    <div class="overall-stats">
-      <div class="stat-box">
-        <span class="value">${overall.totalTests || 0}</span>
-        <span class="label">Total Pruebas</span>
-      </div>
-      <div class="stat-box">
-        <span class="value">${overall.totalPassed || 0}</span>
-        <span class="label">Pasadas</span>
-      </div>
-      <div class="stat-box">
-        <span class="value">${overall.totalFailed || 0}</span>
-        <span class="label">Fallidas</span>
-      </div>
-      <div class="stat-box">
-        <span class="value">${overall.successRate || '0%'}</span>
-        <span class="label">Tasa de Éxito</span>
-      </div>
-    </div>
-
-    <div class="tests-grid">
-      ${tests.map(test => `
-        <div class="test-card">
-          <h3>${(test.type || 'Test').replace(/_/g, ' ')}</h3>
-          <div class="stat">
-            <span class="label">Estado:</span>
-            <span class="value ${test.status === 'passed' ? 'passed' : 'failed'}">${test.status || 'N/A'}</span>
-          </div>
-          <div class="stat">
-            <span class="label">Tasa de Éxito:</span>
-            <span class="value passed">${test.successRate || 'N/A'}</span>
-          </div>
-          <div class="stat">
-            <span class="label">Duración:</span>
-            <span class="value">${test.duration || 'N/A'}</span>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  </div>
-
-  ${Object.keys(details).length > 0 ? `
-  <div class="details-section">
-    <h2>📋 Detalles de Pruebas</h2>
-    ${Object.entries(details).map(([category, data]) => `
-      <div class="detail-group">
-        <h3>${category.replace(/_/g, ' ').toUpperCase()}</h3>
-        <ul class="test-list">
-          ${(data.tests || []).map(test => `
-            <li>
-              <span class="status">${test.status === 'passed' || test.passed ? '✅' : '❌'}</span>
-              <span class="name">${test.name || test.description || 'Test'}</span>
-              ${test.duration ? `<span class="duration">${test.duration}</span>` : ''}
-            </li>
-          `).join('')}
-        </ul>
-      </div>
-    `).join('')}
-  </div>
-  ` : ''}
-
-  <div class="footer">
-    <p>Generado por Testing Plugin - Sistema de Pruebas Automatizadas</p>
-  </div>
-</body>
-</html>
-    `;
-
-    // Enviar como HTML para que el usuario pueda imprimir como PDF
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Content-Disposition', `attachment; filename="reporte-pruebas-${Date.now()}.html"`);
-    res.send(html);
   } catch (error) {
+    console.error('Error generating PDF:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -545,8 +524,11 @@ app.post('/api/project/scan-directory', (req, res) => {
 // SERVIR ARCHIVOS ESTÁTICOS Y SPA
 // ========================================
 
-// Servir archivos estáticos de la carpeta build
-const buildPath = path.join(__dirname, 'build');
+// Servir archivos estáticos de la carpeta build o public si build no existe
+let buildPath = path.join(__dirname, 'build');
+if (!fs.existsSync(buildPath)) {
+  buildPath = path.join(__dirname, 'public');
+}
 app.use(express.static(buildPath));
 
 // SPA fallback - servir index.html para cualquier ruta no encontrada
