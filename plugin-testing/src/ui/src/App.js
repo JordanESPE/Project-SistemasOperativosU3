@@ -138,11 +138,11 @@ function App() {
           </div>
           {activeTab === 'reports' && (
             <>
-              <button className="btn btn-refresh" onClick={handleReset} disabled={testRunning}>
-                🔄 New Test
-              </button>
               <button className="btn btn-export" onClick={handleExportPDF} disabled={!reportData || testRunning}>
                 📥 Export PDF
+              </button>
+              <button className="btn btn-refresh" onClick={handleReset} disabled={testRunning}>
+                🔄 New Test
               </button>
             </>
           )}

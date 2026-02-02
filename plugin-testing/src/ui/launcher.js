@@ -146,8 +146,8 @@ app.get('/*', (req, res) => {
 const server = http.createServer(app);
 
 server.listen(PORT, () => {
-  console.log(`\n✓ Server running on http://localhost:${PORT}`);
-  console.log('✓ Launching browser...\n');
+  console.log(`\n Server running on http://localhost:${PORT}`);
+  console.log(' Launching browser...\n');
   
   // Iniciar servidor de tienda-ecommerce en paralelo
   console.log('→ Starting e-commerce server...');
@@ -162,7 +162,7 @@ server.listen(PORT, () => {
     exec(`xdg-open "${url}" 2>/dev/null || true`, { shell: '/bin/bash' });
     
     // Ejecutar todas las pruebas automáticamente
-    console.log('→ Running tests...\n');
+    console.log('Running tests...\n');
     runTests();
   }, 2000);
 });

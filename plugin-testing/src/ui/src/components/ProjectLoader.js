@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import '../styles/ProjectLoader.css';
 
 function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
@@ -9,12 +9,12 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
   const [serverStatus, setServerStatus] = useState({ running: false, port: null });
   const [manualUrl, setManualUrl] = useState('http://localhost:3001');
   const [selectedTestType, setSelectedTestType] = useState('all');
+  const [uploadProgress, setUploadProgress] = useState(null);
   
-  // Estado para el explorador de archivos visual
-  const [showFileBrowser, setShowFileBrowser] = useState(false);
-  const [browserPath, setBrowserPath] = useState('/home');
-  const [browserItems, setBrowserItems] = useState([]);
-  const [browserLoading, setBrowserLoading] = useState(false);
+  // Referencia al input de archivo oculto
+  const fileInputRef = useRef(null);
+  
+  // Detectar si estamos en Electron
   const [isElectron] = useState(() => !!window.electronAPI?.selectProjectDirectory);
 
   // Polling para estado de tests
@@ -47,53 +47,60 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
           await loadProject(result.path);
         }
       } else {
-        // En navegador web, abrir el explorador visual
-        setShowFileBrowser(true);
-        await browseDirectory('/home');
+        // En navegador web, abrir selector de archivos para ZIP
+        fileInputRef.current?.click();
       }
     } catch (err) {
       setError('Error selecting directory: ' + err.message);
     }
   };
 
-  // Función para navegar por directorios (explorador visual)
-  const browseDirectory = async (dirPath) => {
-    setBrowserLoading(true);
+  // Manejar la selección de archivo ZIP
+  const handleFileSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validar que sea un archivo ZIP
+    if (!file.name.endsWith('.zip')) {
+      setError('Please select a ZIP file (.zip)');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    setUploadProgress('Uploading...');
+    
     try {
-      const response = await fetch(`http://localhost:3002/api/browse?path=${encodeURIComponent(dirPath)}`);
+      const formData = new FormData();
+      formData.append('projectZip', file);
+      
+      const response = await fetch('http://localhost:3002/api/project/upload-zip', {
+        method: 'POST',
+        body: formData
+      });
+      
       const data = await response.json();
       
-      if (response.ok) {
-        setBrowserPath(data.currentPath);
-        setBrowserItems(data.items || []);
-      } else {
-        setError(data.error || 'Error browsing directory');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload project');
+      }
+      
+      setUploadProgress(null);
+      setProject(data.project);
+      onProjectLoaded?.(data.project);
+      
+      // Actualizar URL por defecto
+      if (data.project.port) {
+        setManualUrl(`http://localhost:${data.project.port}`);
       }
     } catch (err) {
-      setError('Error browsing directory: ' + err.message);
+      setError(err.message);
+      setUploadProgress(null);
     } finally {
-      setBrowserLoading(false);
+      setLoading(false);
+      // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+      event.target.value = '';
     }
-  };
-
-  // Función para seleccionar un proyecto desde el explorador
-  const handleBrowserSelect = async (item) => {
-    if (item.isDirectory) {
-      if (item.isProject) {
-        // Es un proyecto, cargarlo
-        setShowFileBrowser(false);
-        await loadProject(item.path);
-      } else {
-        // Es una carpeta, navegar a ella
-        await browseDirectory(item.path);
-      }
-    }
-  };
-
-  // Función para ir al directorio padre
-  const handleBrowserBack = async () => {
-    const parentPath = browserPath.split('/').slice(0, -1).join('/') || '/';
-    await browseDirectory(parentPath);
   };
 
   const loadProject = async (projectPath) => {
@@ -203,69 +210,38 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
       <div className="loader-section">
         <h3>1. Select Project</h3>
         <div className="loader-actions">
+          {/* Input oculto para seleccionar archivo ZIP (solo web) */}
+          {!isElectron && (
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept=".zip"
+              style={{ display: 'none' }}
+            />
+          )}
+          
           <button 
             className="btn btn-primary" 
             onClick={handleSelectProject}
             disabled={loading || testStatus.running}
           >
-            📂 Browse for Project
+            {isElectron ? '📂 Browse for Project' : '📤 Upload Project (ZIP)'}
           </button>
+          
+          {!isElectron && (
+            <p className="upload-hint">
+              💡 Compress your Node.js project folder into a ZIP file and upload it here
+            </p>
+          )}
+          
+          {uploadProgress && (
+            <div className="upload-progress">
+              <div className="spinner-small"></div>
+              <span>{uploadProgress}</span>
+            </div>
+          )}
         </div>
-
-        {/* Explorador de archivos visual (solo en web) */}
-        {showFileBrowser && !isElectron && (
-          <div className="file-browser">
-            <div className="browser-header">
-              <button 
-                className="btn btn-small"
-                onClick={handleBrowserBack}
-                disabled={browserLoading || browserPath === '/'}
-              >
-                ⬆️ Back
-              </button>
-              <span className="browser-path">{browserPath}</span>
-              <button 
-                className="btn btn-small btn-secondary"
-                onClick={() => setShowFileBrowser(false)}
-              >
-                ✕ Close
-              </button>
-            </div>
-            
-            <div className="browser-content">
-              {browserLoading ? (
-                <div className="browser-loading">
-                  <div className="spinner-small"></div>
-                  <span>Loading...</span>
-                </div>
-              ) : browserItems.length === 0 ? (
-                <div className="browser-empty">No items found</div>
-              ) : (
-                <ul className="browser-list">
-                  {browserItems.map((item, index) => (
-                    <li 
-                      key={index}
-                      className={`browser-item ${item.isDirectory ? 'folder' : 'file'} ${item.isProject ? 'project' : ''}`}
-                      onClick={() => handleBrowserSelect(item)}
-                    >
-                      <span className="item-icon">
-                        {item.isProject ? '📦' : item.isDirectory ? '📁' : '📄'}
-                      </span>
-                      <span className="item-name">{item.name}</span>
-                      {item.isProject && (
-                        <span className="item-badge">Node.js Project</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            
-            <div className="browser-hint">
-              💡 Click on a folder to navigate. Click on a <strong>📦 Node.js Project</strong> to load it.
-            </div>
-          </div>
-        )}
 
         {error && (
           <div className="error-message">

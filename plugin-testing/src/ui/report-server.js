@@ -4,6 +4,8 @@ const path = require('path');
 const cors = require('cors');
 const { spawn, exec } = require('child_process');
 const PDFDocument = require('pdfkit');
+const multer = require('multer');
+const unzipper = require('unzipper');
 
 // Importar el generador de reportes profesional
 const ReportGenerator = require('../plugin/modules/report-generator/generator');
@@ -12,6 +14,35 @@ const app = express();
 const PORT = 3002;
 const REPORTS_DIR = path.join(__dirname, '../../reports');
 const PLUGIN_DIR = path.join(__dirname, '../plugin/core');
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+
+// Crear directorio de uploads si no existe
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Configurar multer para subida de archivos
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    cb(null, `project-${timestamp}.zip`);
+  }
+});
+
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB máximo
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/zip' || file.originalname.endsWith('.zip')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only ZIP files are allowed'));
+    }
+  }
+});
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -248,6 +279,125 @@ app.post('/api/project/load', (req, res) => {
   }
 });
 
+// Subir proyecto como ZIP (para versión web)
+app.post('/api/project/upload-zip', upload.single('projectZip'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No ZIP file uploaded' });
+    }
+
+    console.log(`\n[UPLOAD ZIP] File received: ${req.file.originalname}`);
+    console.log(`[UPLOAD ZIP] Size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
+
+    const zipPath = req.file.path;
+    const timestamp = Date.now();
+    const extractDir = path.join(UPLOADS_DIR, `project-${timestamp}`);
+
+    // Crear directorio de extracción
+    if (!fs.existsSync(extractDir)) {
+      fs.mkdirSync(extractDir, { recursive: true });
+    }
+
+    console.log(`[UPLOAD ZIP] Extracting to: ${extractDir}`);
+
+    // Extraer el ZIP
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(zipPath)
+        .pipe(unzipper.Extract({ path: extractDir }))
+        .on('close', resolve)
+        .on('error', reject);
+    });
+
+    // Eliminar el archivo ZIP después de extraer
+    fs.unlinkSync(zipPath);
+
+    // Buscar el directorio del proyecto (puede estar dentro de una carpeta)
+    let projectPath = extractDir;
+    const items = fs.readdirSync(extractDir);
+    
+    // Si solo hay una carpeta, el proyecto está dentro de ella
+    if (items.length === 1) {
+      const singleItem = path.join(extractDir, items[0]);
+      if (fs.statSync(singleItem).isDirectory()) {
+        projectPath = singleItem;
+      }
+    }
+
+    // Verificar que sea un proyecto válido (tiene package.json)
+    const packageJsonPath = path.join(projectPath, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      // Limpiar directorio
+      fs.rmSync(extractDir, { recursive: true, force: true });
+      return res.status(400).json({ 
+        error: 'Invalid project: No package.json found. Make sure to ZIP a Node.js project folder.' 
+      });
+    }
+
+    console.log(`[UPLOAD ZIP] Project path: ${projectPath}`);
+
+    // Leer información del proyecto
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    
+    let projectInfo = {
+      path: projectPath,
+      name: packageJson.name || path.basename(projectPath),
+      type: 'nodejs',
+      hasServer: false,
+      serverFile: null,
+      port: 3001,
+      dependencies: packageJson.dependencies || {},
+      scripts: packageJson.scripts || {},
+      uploadedAt: new Date().toISOString()
+    };
+
+    // Buscar archivo de servidor
+    const possibleServerFiles = ['server.js', 'app.js', 'index.js', 'src/server.js', 'src/app.js', 'src/backend/server.js'];
+    for (const serverFile of possibleServerFiles) {
+      const serverPath = path.join(projectPath, serverFile);
+      if (fs.existsSync(serverPath)) {
+        projectInfo.hasServer = true;
+        projectInfo.serverFile = serverFile;
+        
+        // Intentar detectar el puerto
+        try {
+          const serverContent = fs.readFileSync(serverPath, 'utf8');
+          const portMatch = serverContent.match(/(?:PORT|port)\s*(?:=|\|\|)\s*(\d{4})/);
+          if (portMatch) {
+            projectInfo.port = parseInt(portMatch[1]);
+            console.log(`[UPLOAD ZIP] Detected port: ${projectInfo.port} from ${serverFile}`);
+          }
+        } catch (e) {}
+        break;
+      }
+    }
+
+    // Buscar archivos HTML (frontend)
+    const htmlFiles = ['index.html', 'src/index.html', 'public/index.html'];
+    for (const htmlFile of htmlFiles) {
+      const htmlPath = path.join(projectPath, htmlFile);
+      if (fs.existsSync(htmlPath)) {
+        projectInfo.hasFrontend = true;
+        projectInfo.frontendFile = htmlFile;
+        break;
+      }
+    }
+
+    console.log(`[UPLOAD ZIP] Project info:`, JSON.stringify(projectInfo, null, 2));
+
+    loadedProject = projectInfo;
+    
+    res.json({ 
+      success: true, 
+      project: projectInfo,
+      message: `Project "${projectInfo.name}" uploaded and extracted successfully`
+    });
+
+  } catch (error) {
+    console.error('[UPLOAD ZIP] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Obtener proyecto cargado
 app.get('/api/project/current', (req, res) => {
   if (!loadedProject) {
@@ -357,12 +507,15 @@ app.post('/api/project/start-server', async (req, res) => {
 
     // Detectar si el proyecto usa ES Modules
     let useESModules = false;
+    let packageJsonNeedsTypeModule = false;
     const projectPackageJsonPath = path.join(loadedProject.path, 'package.json');
+    
     if (fs.existsSync(projectPackageJsonPath)) {
       try {
         const projectPkg = JSON.parse(fs.readFileSync(projectPackageJsonPath, 'utf8'));
         useESModules = projectPkg.type === 'module';
-        console.log(`[START SERVER] ES Modules: ${useESModules ? 'Yes' : 'No'}`);
+        console.log(`[START SERVER] Package.json type: ${projectPkg.type || 'commonjs (default)'}`);
+        console.log(`[START SERVER] ES Modules from package.json: ${useESModules ? 'Yes' : 'No'}`);
       } catch (e) {
         console.log(`[START SERVER] Could not read project package.json: ${e.message}`);
       }
@@ -371,19 +524,186 @@ app.post('/api/project/start-server', async (req, res) => {
     // También detectar por extensión .mjs o contenido del archivo
     if (!useESModules && serverFilePath.endsWith('.mjs')) {
       useESModules = true;
+      console.log(`[START SERVER] Detected .mjs extension`);
     }
     if (!useESModules) {
       try {
         const serverContent = fs.readFileSync(serverFilePath, 'utf8');
         if (serverContent.includes('import ') && serverContent.includes(' from ')) {
           useESModules = true;
-          console.log(`[START SERVER] Detected ES Modules syntax in server file`);
+          packageJsonNeedsTypeModule = true; // Necesita que agreguemos "type": "module"
+          console.log(`[START SERVER] Detected ES Modules syntax in server file (needs type: module)`);
         }
       } catch (e) {}
     }
 
-    // Construir argumentos de node
-    const nodeArgs = useESModules ? ['--experimental-specifier-resolution=node', serverFilePath] : [serverFilePath];
+    // Si el proyecto usa sintaxis ESM pero no tiene "type": "module", convertir todo el proyecto
+    if (packageJsonNeedsTypeModule && fs.existsSync(projectPackageJsonPath)) {
+      try {
+        const projectPkg = JSON.parse(fs.readFileSync(projectPackageJsonPath, 'utf8'));
+        projectPkg.type = 'module';
+        fs.writeFileSync(projectPackageJsonPath, JSON.stringify(projectPkg, null, 2));
+        console.log(`[START SERVER] Added "type": "module" to package.json`);
+        
+        // Convertir archivos CommonJS a ESM en el directorio src
+        const convertCommonJSToESM = (dir) => {
+          if (!fs.existsSync(dir)) return;
+          const files = fs.readdirSync(dir);
+          
+          for (const file of files) {
+            const filePath = path.join(dir, file);
+            const stat = fs.statSync(filePath);
+            
+            if (stat.isDirectory() && !file.includes('node_modules')) {
+              convertCommonJSToESM(filePath);
+            } else if (file.endsWith('.js')) {
+              try {
+                let content = fs.readFileSync(filePath, 'utf8');
+                let modified = false;
+                const importsToAdd = [];
+                
+                // Convertir require('dotenv').config() a import 'dotenv/config'
+                if (content.includes("require('dotenv').config()") || content.includes('require("dotenv").config()')) {
+                  content = content.replace(/require\s*\(\s*['"]dotenv['"]\s*\)\.config\s*\(\s*\)\s*;?/g, "import 'dotenv/config';");
+                  modified = true;
+                }
+                
+                // Convertir const X = require('Y') a import X from 'Y'
+                const simpleRequireRegex = /const\s+(\w+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+                let match;
+                while ((match = simpleRequireRegex.exec(content)) !== null) {
+                  modified = true;
+                }
+                content = content.replace(/const\s+(\w+)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g, (match, varName, importPath) => {
+                  // Agregar .js a rutas relativas sin extensión
+                  if ((importPath.startsWith('./') || importPath.startsWith('../')) && 
+                      !importPath.endsWith('.js') && !importPath.endsWith('.json') && !importPath.endsWith('.mjs')) {
+                    importPath += '.js';
+                  }
+                  return `import ${varName} from '${importPath}'`;
+                });
+                
+                // Convertir const { X, Y } = require('Z') a import { X, Y } from 'Z'
+                if (content.includes('} = require(')) {
+                  content = content.replace(/const\s*\{\s*([^}]+)\s*\}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g, (match, vars, importPath) => {
+                    // Agregar .js a rutas relativas sin extensión
+                    if ((importPath.startsWith('./') || importPath.startsWith('../')) && 
+                        !importPath.endsWith('.js') && !importPath.endsWith('.json') && !importPath.endsWith('.mjs')) {
+                      importPath += '.js';
+                    }
+                    return `import { ${vars} } from '${importPath}'`;
+                  });
+                  modified = true;
+                }
+                
+                // Convertir require('./routes/X') inline a imports + variable
+                // Buscar todos los requires inline (dentro de funciones como app.use)
+                const inlineRequireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+                const inlineMatches = [];
+                let inlineMatch;
+                const tempContent = content;
+                while ((inlineMatch = inlineRequireRegex.exec(tempContent)) !== null) {
+                  // Solo procesar si no es parte de una asignación const ya manejada
+                  const beforeMatch = tempContent.substring(Math.max(0, inlineMatch.index - 50), inlineMatch.index);
+                  if (!beforeMatch.includes('const ') && !beforeMatch.includes('import ')) {
+                    inlineMatches.push({
+                      full: inlineMatch[0],
+                      path: inlineMatch[1]
+                    });
+                  }
+                }
+                
+                // Procesar requires inline
+                for (const req of inlineMatches) {
+                  // Generar nombre de variable basado en el path
+                  let varName = req.path
+                    .replace(/^\.\//, '')
+                    .replace(/^\.\.\//, '')
+                    .replace(/\//g, '_')
+                    .replace(/\.js$/, '')
+                    .replace(/-/g, '_');
+                  varName = varName + '_module';
+                  
+                  // Agregar .js si es ruta relativa sin extensión
+                  let importPath = req.path;
+                  if (importPath.startsWith('./') || importPath.startsWith('../')) {
+                    if (!importPath.endsWith('.js') && !importPath.endsWith('.json')) {
+                      importPath += '.js';
+                    }
+                  }
+                  
+                  // Agregar import al inicio
+                  importsToAdd.push(`import ${varName} from '${importPath}';`);
+                  
+                  // Reemplazar require por la variable
+                  content = content.replace(req.full, varName);
+                  modified = true;
+                }
+                
+                // Agregar imports al inicio del archivo (después de otros imports existentes)
+                if (importsToAdd.length > 0) {
+                  // Buscar la última línea de import
+                  const lines = content.split('\n');
+                  let lastImportIndex = -1;
+                  for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].trim().startsWith('import ')) {
+                      lastImportIndex = i;
+                    }
+                  }
+                  
+                  // Insertar los nuevos imports después del último import
+                  const newImports = importsToAdd.join('\n');
+                  if (lastImportIndex >= 0) {
+                    lines.splice(lastImportIndex + 1, 0, newImports);
+                  } else {
+                    lines.unshift(newImports);
+                  }
+                  content = lines.join('\n');
+                }
+                
+                // Convertir module.exports = X a export default X
+                if (content.includes('module.exports')) {
+                  content = content.replace(/module\.exports\s*=\s*/g, 'export default ');
+                  modified = true;
+                }
+                
+                // Convertir exports.X = Y a export const X = Y (casos simples)
+                if (content.includes('exports.') && !content.includes('module.exports')) {
+                  content = content.replace(/exports\.(\w+)\s*=\s*/g, 'export const $1 = ');
+                  modified = true;
+                }
+                
+                // Agregar .js a imports relativos existentes que no tienen extensión
+                // Esto maneja imports que ya estaban en ESM pero sin extensión
+                content = content.replace(/import\s+(.+?)\s+from\s+['"](\.[^'"]+)['"]/g, (match, what, importPath) => {
+                  if (!importPath.endsWith('.js') && !importPath.endsWith('.json') && !importPath.endsWith('.mjs') && !importPath.includes('/config')) {
+                    return `import ${what} from '${importPath}.js'`;
+                  }
+                  return match;
+                });
+                
+                if (modified) {
+                  fs.writeFileSync(filePath, content);
+                  console.log(`[START SERVER] Converted to ESM: ${filePath}`);
+                }
+              } catch (e) {
+                console.log(`[START SERVER] Could not convert ${filePath}: ${e.message}`);
+              }
+            }
+          }
+        };
+        
+        // Convertir archivos en src/ y en la raíz
+        convertCommonJSToESM(path.join(loadedProject.path, 'src'));
+        convertCommonJSToESM(loadedProject.path);
+        
+      } catch (e) {
+        console.log(`[START SERVER] Could not modify package.json: ${e.message}`);
+      }
+    }
+
+    // Construir argumentos de node - ya no necesitamos flags especiales si package.json tiene type: module
+    const nodeArgs = [serverFilePath];
     console.log(`[START SERVER] Executing: node ${nodeArgs.join(' ')}`);
 
     // Iniciar el servidor con pipe para capturar output
@@ -414,7 +734,13 @@ app.post('/api/project/start-server', async (req, res) => {
     projectServerProcess.stderr.on('data', (data) => {
       const output = data.toString();
       console.error(`[PROJECT SERVER ERROR] ${output}`);
-      serverError = output;
+      // Solo guardar como error si es un error real, no warnings
+      if (output.includes('SyntaxError') || 
+          output.includes('Error:') || 
+          output.includes('Cannot find module') ||
+          output.includes('does not provide an export')) {
+        serverError = output;
+      }
     });
 
     // Manejar errores del proceso
