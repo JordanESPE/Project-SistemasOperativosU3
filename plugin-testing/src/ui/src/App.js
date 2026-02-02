@@ -69,6 +69,28 @@ function App() {
     setActiveTab('reports');
   };
 
+  // Función para reiniciar todo y volver a la vista principal
+  const handleReset = async () => {
+    console.log('[RESET] Iniciando reset...');
+    // Limpiar el proyecto cargado en el servidor
+    try {
+      const response = await fetch('http://localhost:3002/api/project/unload', { method: 'POST' });
+      const data = await response.json();
+      console.log('[RESET] Servidor respondió:', data);
+    } catch (e) {
+      console.log('[RESET] Error al descargar proyecto:', e);
+    }
+    
+    // Reiniciar estados
+    setLoadedProject(null);
+    setReportData(null);
+    setError(null);
+    setLoading(false);
+    setTestRunning(false);
+    setActiveTab('loader');
+    console.log('[RESET] Estado limpiado, cambiando a loader');
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -116,8 +138,8 @@ function App() {
           </div>
           {activeTab === 'reports' && (
             <>
-              <button className="btn btn-refresh" onClick={loadLatestReport} disabled={testRunning}>
-                🔄 Refresh
+              <button className="btn btn-refresh" onClick={handleReset} disabled={testRunning}>
+                🔄 New Test
               </button>
               <button className="btn btn-export" onClick={handleExportPDF} disabled={!reportData || testRunning}>
                 📥 Export PDF

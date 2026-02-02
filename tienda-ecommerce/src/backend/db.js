@@ -166,7 +166,8 @@ db.serialize(() => {
   db.run(`INSERT OR IGNORE INTO users (email, password, full_name, phone, address, city, is_admin) 
           VALUES 
           ('admin@tienda.com', 'admin123', 'Administrador', '1234567890', 'Calle Admin 123', 'Bogotá', 1),
-          ('cliente@tienda.com', 'cliente123', 'Cliente Prueba', '9876543210', 'Calle Cliente 456', 'Medellín', 0)`);
+          ('cliente@tienda.com', 'cliente123', 'Cliente Prueba', '9876543210', 'Calle Cliente 456', 'Medellín', 0),
+          ('customer@example.com', 'password123', 'Test Customer', '555-0123', '123 Test St', 'Test City', 0)`);
 });
 
 module.exports = db;

@@ -103,7 +103,11 @@ app.post('/api/auth/login', (req, res) => {
   db.get('SELECT * FROM users WHERE email = ? AND password = ?', [email, password], (err, row) => {
     if (err) res.status(500).json({ error: err.message });
     else if (!row) res.status(401).json({ error: 'Email o contraseña inválidos' });
-    else res.json({ id: row.id, email: row.email, full_name: row.full_name, is_admin: row.is_admin });
+    else {
+      // Generar token simple para las pruebas
+      const token = Buffer.from(`${row.id}:${row.email}:${Date.now()}`).toString('base64');
+      res.json({ id: row.id, email: row.email, full_name: row.full_name, is_admin: row.is_admin, token });
+    }
   });
 });
 
@@ -165,35 +169,40 @@ app.delete('/api/cart/:user_id/:product_id', (req, res) => {
 app.post('/api/orders', (req, res) => {
   const { user_id, cart_items, total_amount, payment_method, shipping_address } = req.body;
 
-  if (!user_id || !cart_items || !total_amount) {
+  if (!user_id || !total_amount) {
     return res.status(400).json({ error: 'Datos incompletos para crear orden' });
   }
 
   const order_number = 'ORD-' + Date.now();
 
   db.run('INSERT INTO orders (user_id, order_number, total_amount, payment_method, shipping_address, status) VALUES (?, ?, ?, ?, ?, ?)',
-    [user_id, order_number, total_amount, payment_method, shipping_address, 'confirmed'],
+    [user_id, order_number, total_amount, payment_method || 'pending', shipping_address || '', 'confirmed'],
     function(err) {
       if (err) return res.status(400).json({ error: err.message });
 
       const order_id = this.lastID;
 
-      // Insertar items de la orden
-      let completed = 0;
-      cart_items.forEach(item => {
-        db.run('INSERT INTO order_items (order_id, product_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?)',
-          [order_id, item.product_id, item.quantity, item.price, item.quantity * item.price],
-          (err) => {
-            completed++;
-            if (completed === cart_items.length) {
-              // Limpiar carrito
-              db.run('DELETE FROM cart WHERE user_id = ?', [user_id], () => {
-                res.status(201).json({ id: order_id, order_number, total_amount, status: 'confirmed' });
-              });
+      // Si hay cart_items, insertar items de la orden
+      if (cart_items && cart_items.length > 0) {
+        let completed = 0;
+        cart_items.forEach(item => {
+          db.run('INSERT INTO order_items (order_id, product_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?)',
+            [order_id, item.product_id, item.quantity, item.price, item.quantity * item.price],
+            (err) => {
+              completed++;
+              if (completed === cart_items.length) {
+                // Limpiar carrito
+                db.run('DELETE FROM cart WHERE user_id = ?', [user_id], () => {
+                  res.status(201).json({ id: order_id, order_number, total_amount, status: 'confirmed' });
+                });
+              }
             }
-          }
-        );
-      });
+          );
+        });
+      } else {
+        // Si no hay cart_items, solo crear la orden
+        res.status(201).json({ id: order_id, order_number, total_amount, status: 'confirmed' });
+      }
     }
   );
 });

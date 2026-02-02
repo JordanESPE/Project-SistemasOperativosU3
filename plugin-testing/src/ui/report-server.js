@@ -256,6 +256,37 @@ app.get('/api/project/current', (req, res) => {
   res.json(loadedProject);
 });
 
+// Variable para guardar el proceso del servidor del proyecto
+let projectServerProcess = null;
+
+// Descargar proyecto y limpiar estado
+app.post('/api/project/unload', (req, res) => {
+  console.log('[UNLOAD] Descargando proyecto actual...');
+  
+  // Matar proceso del servidor si existe
+  if (projectServerProcess) {
+    console.log('[UNLOAD] Matando proceso del servidor del proyecto...');
+    try {
+      projectServerProcess.kill('SIGTERM');
+      projectServerProcess = null;
+      console.log('[UNLOAD] Proceso del servidor terminado');
+    } catch (e) {
+      console.log('[UNLOAD] Error al matar proceso:', e.message);
+    }
+  }
+  
+  // Limpiar proyecto cargado
+  const previousProject = loadedProject;
+  loadedProject = null;
+  
+  console.log('[UNLOAD] Proyecto descargado:', previousProject?.name || 'ninguno');
+  res.json({ 
+    success: true, 
+    message: 'Proyecto descargado correctamente',
+    previousProject: previousProject?.name || null
+  });
+});
+
 // Iniciar servidor del proyecto
 app.post('/api/project/start-server', async (req, res) => {
   try {
@@ -263,8 +294,17 @@ app.post('/api/project/start-server', async (req, res) => {
       return res.status(400).json({ error: 'No project loaded' });
     }
 
+    if (!loadedProject.hasServer || !loadedProject.serverFile) {
+      return res.status(400).json({ error: 'Project does not have a server file' });
+    }
+
     const { port } = req.body;
     const projectPort = port || loadedProject.port || 3001;
+
+    console.log(`\n[START SERVER] Attempting to start server...`);
+    console.log(`  - Project path: ${loadedProject.path}`);
+    console.log(`  - Server file: ${loadedProject.serverFile}`);
+    console.log(`  - Port: ${projectPort}`);
 
     // Verificar si ya hay algo corriendo en ese puerto
     const checkPort = await new Promise((resolve) => {
@@ -274,6 +314,7 @@ app.post('/api/project/start-server', async (req, res) => {
     });
 
     if (checkPort) {
+      console.log(`[START SERVER] Port ${projectPort} already in use`);
       return res.json({ 
         success: true, 
         message: `Server already running on port ${projectPort}`,
@@ -285,34 +326,151 @@ app.post('/api/project/start-server', async (req, res) => {
     // Instalar dependencias si no existen node_modules
     const nodeModulesPath = path.join(loadedProject.path, 'node_modules');
     if (!fs.existsSync(nodeModulesPath)) {
+      console.log(`[START SERVER] Installing dependencies...`);
       await new Promise((resolve, reject) => {
-        exec('npm install', { cwd: loadedProject.path }, (error, stdout, stderr) => {
-          if (error) reject(error);
-          else resolve(stdout);
+        exec('npm install', { cwd: loadedProject.path, timeout: 120000 }, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`[START SERVER] npm install error: ${error.message}`);
+            reject(error);
+          } else {
+            console.log(`[START SERVER] Dependencies installed`);
+            resolve(stdout);
+          }
         });
       });
     }
 
-    // Iniciar el servidor
-    const serverProcess = spawn('node', [loadedProject.serverFile], {
+    // Matar proceso anterior si existe
+    if (projectServerProcess) {
+      try {
+        projectServerProcess.kill();
+      } catch (e) {}
+      projectServerProcess = null;
+    }
+
+    // Construir la ruta completa al archivo del servidor
+    const serverFilePath = path.join(loadedProject.path, loadedProject.serverFile);
+    
+    if (!fs.existsSync(serverFilePath)) {
+      return res.status(400).json({ error: `Server file not found: ${serverFilePath}` });
+    }
+
+    // Detectar si el proyecto usa ES Modules
+    let useESModules = false;
+    const projectPackageJsonPath = path.join(loadedProject.path, 'package.json');
+    if (fs.existsSync(projectPackageJsonPath)) {
+      try {
+        const projectPkg = JSON.parse(fs.readFileSync(projectPackageJsonPath, 'utf8'));
+        useESModules = projectPkg.type === 'module';
+        console.log(`[START SERVER] ES Modules: ${useESModules ? 'Yes' : 'No'}`);
+      } catch (e) {
+        console.log(`[START SERVER] Could not read project package.json: ${e.message}`);
+      }
+    }
+
+    // También detectar por extensión .mjs o contenido del archivo
+    if (!useESModules && serverFilePath.endsWith('.mjs')) {
+      useESModules = true;
+    }
+    if (!useESModules) {
+      try {
+        const serverContent = fs.readFileSync(serverFilePath, 'utf8');
+        if (serverContent.includes('import ') && serverContent.includes(' from ')) {
+          useESModules = true;
+          console.log(`[START SERVER] Detected ES Modules syntax in server file`);
+        }
+      } catch (e) {}
+    }
+
+    // Construir argumentos de node
+    const nodeArgs = useESModules ? ['--experimental-specifier-resolution=node', serverFilePath] : [serverFilePath];
+    console.log(`[START SERVER] Executing: node ${nodeArgs.join(' ')}`);
+
+    // Iniciar el servidor con pipe para capturar output
+    projectServerProcess = spawn('node', nodeArgs, {
       cwd: loadedProject.path,
-      env: { ...process.env, PORT: projectPort },
-      detached: true,
-      stdio: 'ignore'
+      env: { ...process.env, PORT: projectPort.toString() },
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe']
     });
 
-    serverProcess.unref();
+    let serverStarted = false;
+    let serverError = null;
 
-    // Esperar a que el servidor esté listo
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    res.json({ 
-      success: true, 
-      message: `Server started on port ${projectPort}`,
-      port: projectPort,
-      pid: serverProcess.pid
+    // Capturar stdout
+    projectServerProcess.stdout.on('data', (data) => {
+      const output = data.toString();
+      console.log(`[PROJECT SERVER] ${output}`);
+      // Detectar si el servidor arrancó
+      if (output.toLowerCase().includes('listening') || 
+          output.toLowerCase().includes('running') ||
+          output.toLowerCase().includes('started') ||
+          output.includes(projectPort.toString())) {
+        serverStarted = true;
+      }
     });
+
+    // Capturar stderr
+    projectServerProcess.stderr.on('data', (data) => {
+      const output = data.toString();
+      console.error(`[PROJECT SERVER ERROR] ${output}`);
+      serverError = output;
+    });
+
+    // Manejar errores del proceso
+    projectServerProcess.on('error', (error) => {
+      console.error(`[START SERVER] Process error: ${error.message}`);
+      serverError = error.message;
+    });
+
+    // Manejar cierre del proceso
+    projectServerProcess.on('close', (code) => {
+      console.log(`[START SERVER] Process exited with code ${code}`);
+      if (code !== 0 && code !== null) {
+        projectServerProcess = null;
+      }
+    });
+
+    // Esperar a que el servidor esté listo (máximo 10 segundos)
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verificar si el puerto está ahora en uso
+      const portInUse = await new Promise((resolve) => {
+        exec(`lsof -i :${projectPort}`, (error, stdout) => {
+          resolve(stdout.trim().length > 0);
+        });
+      });
+      
+      if (portInUse || serverStarted) {
+        console.log(`[START SERVER] Server is now running on port ${projectPort}`);
+        return res.json({ 
+          success: true, 
+          message: `Server started on port ${projectPort}`,
+          port: projectPort,
+          pid: projectServerProcess?.pid
+        });
+      }
+      
+      if (serverError) {
+        return res.status(500).json({ 
+          error: `Failed to start server: ${serverError}` 
+        });
+      }
+      
+      attempts++;
+    }
+
+    // Timeout
+    return res.status(500).json({ 
+      error: `Server failed to start within 10 seconds. Check if the server file is correct.` 
+    });
+
   } catch (error) {
+    console.error(`[START SERVER] Error: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
