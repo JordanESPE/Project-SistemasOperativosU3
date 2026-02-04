@@ -12,7 +12,7 @@ const axios = require('axios');
 const ReportGenerator = require('../plugin/modules/report-generator/generator');
 
 const app = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 const REPORTS_DIR = path.join(__dirname, '../../reports');
 const PLUGIN_DIR = path.join(__dirname, '../plugin/core');
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');

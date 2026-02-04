@@ -1,0 +1,130 @@
+.test-detail {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.test-detail:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.test-header {
+  background: var(--primary);
+  color: white;
+  padding: 12px 16px;
+}
+
+.test-header h4 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.test-body {
+  padding: 16px;
+}
+
+.summary {
+  margin-bottom: 16px;
+}
+
+.summary p {
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+}
+
+.summary p strong {
+  color: var(--text-primary);
+  min-width: 120px;
+  font-weight: 500;
+}
+
+.metrics {
+  margin-bottom: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.metrics h5,
+.test-list h5 {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 8px;
+}
+
+.metrics p {
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.metrics strong {
+  color: var(--text-primary);
+  min-width: 100px;
+  font-weight: 500;
+}
+
+.test-list {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.test-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.test-list li {
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.test-list .status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  min-width: 50px;
+  text-align: center;
+}
+
+.status.passed {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.status.failed {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.status.pending {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+
+.more {
+  font-style: italic;
+  color: var(--text-secondary);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  font-size: 11px;
+}
