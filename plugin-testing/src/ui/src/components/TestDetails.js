@@ -2,25 +2,62 @@ import React from 'react';
 import '../styles/TestDetails.css';
 
 function TestDetails({ test }) {
+  // Determinar qué campos mostrar según el tipo de prueba
+  const getSummaryData = () => {
+    if (!test.summary) return null;
+
+    if (test.type === 'LOAD_TEST') {
+      const errorRate = parseFloat(test.summary.errorRate) || 0;
+      const successRate = (100 - errorRate).toFixed(2) + '%';
+      
+      return {
+        total: test.summary.totalRequests || 0,
+        passed: test.summary.successfulRequests || 0,
+        failed: test.summary.failedRequests || 0,
+        successRate: successRate,
+        duration: test.summary.duration || 'N/A'
+      };
+    } else if (test.type === 'STRESS_TEST') {
+      return {
+        total: test.summary.maxConcurrentRequests || 0,
+        passed: test.summary.systemLimitReached ? 0 : test.summary.maxConcurrentRequests || 0,
+        failed: test.summary.systemLimitReached ? test.summary.maxConcurrentRequests || 0 : 0,
+        successRate: test.summary.systemLimitReached ? '0%' : '100%',
+        duration: test.summary.duration || 'N/A'
+      };
+    } else {
+      // FUNCTIONAL_TESTS y NON_FUNCTIONAL_TESTS
+      return {
+        total: test.summary.total || 0,
+        passed: test.summary.passed || 0,
+        failed: test.summary.failed || 0,
+        successRate: test.summary.successRate || 'N/A',
+        duration: test.summary.duration || 'N/A'
+      };
+    }
+  };
+
+  const summaryData = getSummaryData();
+
   return (
     <div className="test-detail">
       <div className="test-header">
         <h4>{test.type}</h4>
       </div>
       <div className="test-body">
-        {test.summary && (
+        {summaryData && (
           <div className="summary">
-            <p><strong>Total:</strong> {test.summary.total || 0}</p>
-            <p><strong>Passed:</strong> {test.summary.passed || 0}</p>
-            <p><strong>Failed:</strong> {test.summary.failed || 0}</p>
-            <p><strong>Success Rate:</strong> {test.summary.successRate || 'N/A'}</p>
-            <p><strong>Duration:</strong> {test.summary.duration || 'N/A'}</p>
+            <p><strong>Total:</strong> {summaryData.total}</p>
+            <p><strong>Passed:</strong> {summaryData.passed}</p>
+            <p><strong>Failed:</strong> {summaryData.failed}</p>
+            <p><strong>Success Rate:</strong> {summaryData.successRate}</p>
+            <p><strong>Duration:</strong> {summaryData.duration}</p>
           </div>
         )}
 
         {test.metrics && Object.keys(test.metrics).length > 0 && (
           <div className="metrics">
-            <h5>Metrics</h5>
+            <h5>METRICS</h5>
             {Object.entries(test.metrics).map(([key, value]) => (
               <p key={key}><strong>{key}:</strong> {value}</p>
             ))}
@@ -31,15 +68,12 @@ function TestDetails({ test }) {
           <div className="test-list">
             <h5>Test Cases</h5>
             <ul>
-              {test.details.slice(0, 5).map((detail, index) => (
+              {test.details.map((detail, index) => (
                 <li key={index}>
                   <span className={`status ${detail.status?.toLowerCase()}`}>{detail.status}</span>
                   {detail.name}
                 </li>
               ))}
-              {test.details.length > 5 && (
-                <li className="more">... and {test.details.length - 5} more</li>
-              )}
             </ul>
           </div>
         )}

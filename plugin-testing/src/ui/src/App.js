@@ -8,7 +8,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [testRunning, setTestRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState('loader'); // 'loader' or 'reports'
+  const [activeTab, setActiveTab] = useState('loader'); 
   const [loadedProject, setLoadedProject] = useState(null);
 
   useEffect(() => {
@@ -96,11 +96,11 @@ function App() {
       <header className="app-header">
         <div className="header-content">
           <div className="logo-section">
-            <h1>⚡ Testing Plugin</h1>
+            <h1><i className="bi bi-lightning-charge-fill"></i> Testing Plugin</h1>
             <p>Visual Report Viewer & Analyzer</p>
             {loadedProject && (
               <span className="loaded-project-badge">
-                📦 {loadedProject.name}
+                <i className="bi bi-box-seam"></i> {loadedProject.name}
               </span>
             )}
           </div>
@@ -118,6 +118,12 @@ function App() {
                 <span className="stat-label">Failed</span>
                 <span className="stat-value">{reportData.summary?.overall?.totalFailed || 0}</span>
               </div>
+              {(reportData.summary?.overall?.totalWarnings || 0) > 0 && (
+                <div className="stat-badge warning">
+                  <span className="stat-label">Warnings</span>
+                  <span className="stat-value">{reportData.summary?.overall?.totalWarnings}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -127,22 +133,22 @@ function App() {
               className={`btn btn-tab ${activeTab === 'loader' ? 'active' : ''}`}
               onClick={() => setActiveTab('loader')}
             >
-              📁 Load Project
+              <i className="bi bi-folder2-open"></i> Load Project
             </button>
             <button 
               className={`btn btn-tab ${activeTab === 'reports' ? 'active' : ''}`}
               onClick={() => setActiveTab('reports')}
             >
-              📊 View Reports
+              <i className="bi bi-bar-chart-fill"></i> View Reports
             </button>
           </div>
           {activeTab === 'reports' && (
             <>
               <button className="btn btn-export" onClick={handleExportPDF} disabled={!reportData || testRunning}>
-                📥 Export PDF
+                <i className="bi bi-download"></i> Export PDF
               </button>
               <button className="btn btn-refresh" onClick={handleReset} disabled={testRunning}>
-                🔄 New Test
+                <i className="bi bi-arrow-clockwise"></i> New Test
               </button>
             </>
           )}

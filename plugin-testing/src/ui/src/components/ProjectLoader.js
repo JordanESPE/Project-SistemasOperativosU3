@@ -202,7 +202,7 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
   return (
     <div className="project-loader">
       <div className="loader-header">
-        <h2>📁 Project Loader</h2>
+        <h2><i className="bi bi-folder2-open"></i> Project Loader</h2>
         <p>Load a project to analyze and run tests</p>
       </div>
 
@@ -226,12 +226,12 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
             onClick={handleSelectProject}
             disabled={loading || testStatus.running}
           >
-            {isElectron ? '📂 Browse for Project' : '📤 Upload Project (ZIP)'}
+            {isElectron ? <><i className="bi bi-folder-fill"></i> Browse for Project</> : <><i className="bi bi-cloud-upload"></i> Upload Project (ZIP)</>}
           </button>
           
           {!isElectron && (
             <p className="upload-hint">
-              💡 Compress your Node.js project folder into a ZIP file and upload it here
+              <i className="bi bi-info-circle"></i> Compress your Node.js project folder into a ZIP file and upload it here
             </p>
           )}
           
@@ -245,14 +245,14 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
 
         {error && (
           <div className="error-message">
-            ⚠️ {error}
+            <i className="bi bi-exclamation-triangle"></i> {error}
           </div>
         )}
 
         {project && (
           <div className="project-info">
             <div className="project-card">
-              <div className="project-icon">📦</div>
+              <div className="project-icon"><i className="bi bi-box-seam"></i></div>
               <div className="project-details">
                 <h4>{project.name}</h4>
                 <p className="project-path">{project.path}</p>
@@ -291,7 +291,7 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                   onClick={handleStartServer}
                   disabled={loading || testStatus.running || serverStatus.running}
                 >
-                  {serverStatus.running ? '✅ Server Running' : '🚀 Start Project Server'}
+                  {serverStatus.running ? <><i className="bi bi-check-circle-fill"></i> Server Running</> : <><i className="bi bi-rocket-takeoff"></i> Start Project Server</>}
                 </button>
                 {serverStatus.running && (
                   <span className="server-status">Running on port {serverStatus.port}</span>
@@ -314,11 +314,11 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                 onChange={(e) => setSelectedTestType(e.target.value)}
                 disabled={testStatus.running}
               >
-                <option value="all">🔄 All Tests</option>
-                <option value="functional">✅ Functional Tests</option>
-                <option value="non-functional">⚙️ Non-Functional Tests</option>
-                <option value="load">📊 Load Tests</option>
-                <option value="stress">💥 Stress Tests</option>
+                <option value="all">All Tests</option>
+                <option value="functional">Functional Tests</option>
+                <option value="non-functional">Non-Functional Tests</option>
+                <option value="load">Load Tests</option>
+                <option value="stress">Stress Tests</option>
               </select>
             </div>
             
@@ -329,14 +329,14 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                   onClick={handleRunTests}
                   disabled={loading}
                 >
-                  ▶️ Run Tests
+                  <i className="bi bi-play-fill"></i> Run Tests
                 </button>
               ) : (
                 <button 
                   className="btn btn-danger btn-large"
                   onClick={handleCancelTests}
                 >
-                  ⏹️ Cancel Tests
+                  <i className="bi bi-stop-fill"></i> Cancel Tests
                 </button>
               )}
             </div>
@@ -371,7 +371,7 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
       {/* Área de ayuda */}
       {!project && (
         <div className="help-section">
-          <h3>💡 Getting Started</h3>
+          <h3><i className="bi bi-lightbulb"></i> Getting Started</h3>
           <ol>
             <li>Click "Browse for Project" to select a Node.js project folder</li>
             <li>Or enter the full path to your project manually</li>

@@ -4,8 +4,9 @@ const LoadStressTestRunner = require('../modules/load-stress-tests/runner');
 const ReportGenerator = require('../modules/report-generator/generator');
 
 class TestExecutor {
-  constructor(baseUrl = 'http://localhost:3001') {
+  constructor(baseUrl = 'http://localhost:3001', detectedRoutes = []) {
     this.baseUrl = baseUrl;
+    this.detectedRoutes = detectedRoutes;
     this.allResults = [];
   }
 
@@ -16,19 +17,19 @@ class TestExecutor {
 
     try {
       // Functional tests
-      const functionalRunner = new FunctionalTestRunner(this.baseUrl);
+      const functionalRunner = new FunctionalTestRunner(this.baseUrl, this.detectedRoutes);
       const functionalResults = await functionalRunner.runAllTests();
       this.allResults.push(functionalResults);
       console.log('\n[OK] Functional tests completed\n');
 
       // Non-functional tests
-      const nonFunctionalRunner = new NonFunctionalTestRunner(this.baseUrl);
+      const nonFunctionalRunner = new NonFunctionalTestRunner(this.baseUrl, this.detectedRoutes);
       const nonFunctionalResults = await nonFunctionalRunner.runAllTests();
       this.allResults.push(nonFunctionalResults);
       console.log('\n[OK] Non-functional tests completed\n');
 
       // Load tests
-      const loadStressRunner = new LoadStressTestRunner(this.baseUrl);
+      const loadStressRunner = new LoadStressTestRunner(this.baseUrl, this.detectedRoutes);
       const loadResults = await loadStressRunner.runLoadTests(5, 5);
       this.allResults.push(loadResults);
       console.log('\n[OK] Load test completed\n');
@@ -63,7 +64,7 @@ class TestExecutor {
     console.log('========================================================================\n');
 
     try {
-      const runner = new FunctionalTestRunner(this.baseUrl);
+      const runner = new FunctionalTestRunner(this.baseUrl, this.detectedRoutes);
       const results = await runner.runAllTests();
       this.allResults.push(results);
 
@@ -84,7 +85,7 @@ class TestExecutor {
     console.log('========================================================================\n');
 
     try {
-      const runner = new NonFunctionalTestRunner(this.baseUrl);
+      const runner = new NonFunctionalTestRunner(this.baseUrl, this.detectedRoutes);
       const results = await runner.runAllTests();
       this.allResults.push(results);
 
@@ -105,7 +106,7 @@ class TestExecutor {
     console.log('========================================================================\n');
 
     try {
-      const runner = new LoadStressTestRunner(this.baseUrl);
+      const runner = new LoadStressTestRunner(this.baseUrl, this.detectedRoutes);
       const results = await runner.runLoadTests(10, 5);
       this.allResults.push(results);
 
@@ -126,7 +127,7 @@ class TestExecutor {
     console.log('========================================================================\n');
 
     try {
-      const runner = new LoadStressTestRunner(this.baseUrl);
+      const runner = new LoadStressTestRunner(this.baseUrl, this.detectedRoutes);
       const results = await runner.runStressTests(100, 20);
       this.allResults.push(results);
 

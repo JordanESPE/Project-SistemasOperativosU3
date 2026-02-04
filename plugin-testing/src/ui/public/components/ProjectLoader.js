@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import '../styles/ProjectLoader.css';
 
 function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
@@ -7,9 +7,15 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
   const [error, setError] = useState(null);
   const [testStatus, setTestStatus] = useState({ running: false, progress: '', logs: [] });
   const [serverStatus, setServerStatus] = useState({ running: false, port: null });
-  const [manualPath, setManualPath] = useState('');
   const [manualUrl, setManualUrl] = useState('http://localhost:3001');
   const [selectedTestType, setSelectedTestType] = useState('all');
+  const [uploadProgress, setUploadProgress] = useState(null);
+  
+  // Referencia al input de archivo oculto
+  const fileInputRef = useRef(null);
+  
+  // Detectar si estamos en Electron
+  const [isElectron] = useState(() => !!window.electronAPI?.selectProjectDirectory);
 
   // Polling para estado de tests
   useEffect(() => {
@@ -41,11 +47,59 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
           await loadProject(result.path);
         }
       } else {
-        // Fallback: usar input manual
-        setError('Use the manual path input below');
+        // En navegador web, abrir selector de archivos para ZIP
+        fileInputRef.current?.click();
       }
     } catch (err) {
       setError('Error selecting directory: ' + err.message);
+    }
+  };
+
+  // Manejar la selección de archivo ZIP
+  const handleFileSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validar que sea un archivo ZIP
+    if (!file.name.endsWith('.zip')) {
+      setError('Please select a ZIP file (.zip)');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    setUploadProgress('Uploading...');
+    
+    try {
+      const formData = new FormData();
+      formData.append('projectZip', file);
+      
+      const response = await fetch('http://localhost:3002/api/project/upload-zip', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload project');
+      }
+      
+      setUploadProgress(null);
+      setProject(data.project);
+      onProjectLoaded?.(data.project);
+      
+      // Actualizar URL por defecto
+      if (data.project.port) {
+        setManualUrl(`http://localhost:${data.project.port}`);
+      }
+    } catch (err) {
+      setError(err.message);
+      setUploadProgress(null);
+    } finally {
+      setLoading(false);
+      // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+      event.target.value = '';
     }
   };
 
@@ -77,12 +131,6 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleManualLoad = async () => {
-    if (manualPath.trim()) {
-      await loadProject(manualPath.trim());
     }
   };
 
@@ -154,7 +202,7 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
   return (
     <div className="project-loader">
       <div className="loader-header">
-        <h2>📁 Project Loader</h2>
+        <h2><i className="bi bi-folder2-open"></i> Project Loader</h2>
         <p>Load a project to analyze and run tests</p>
       </div>
 
@@ -162,42 +210,49 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
       <div className="loader-section">
         <h3>1. Select Project</h3>
         <div className="loader-actions">
+          {/* Input oculto para seleccionar archivo ZIP (solo web) */}
+          {!isElectron && (
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept=".zip"
+              style={{ display: 'none' }}
+            />
+          )}
+          
           <button 
             className="btn btn-primary" 
             onClick={handleSelectProject}
             disabled={loading || testStatus.running}
           >
-            📂 Browse for Project
+            {isElectron ? <><i className="bi bi-folder-fill"></i> Browse for Project</> : <><i className="bi bi-cloud-upload"></i> Upload Project (ZIP)</>}
           </button>
           
-          <div className="manual-input">
-            <input
-              type="text"
-              placeholder="Or enter project path manually..."
-              value={manualPath}
-              onChange={(e) => setManualPath(e.target.value)}
-              disabled={loading || testStatus.running}
-            />
-            <button 
-              className="btn btn-secondary"
-              onClick={handleManualLoad}
-              disabled={loading || testStatus.running || !manualPath.trim()}
-            >
-              Load
-            </button>
-          </div>
+          {!isElectron && (
+            <p className="upload-hint">
+              <i className="bi bi-info-circle"></i> Compress your Node.js project folder into a ZIP file and upload it here
+            </p>
+          )}
+          
+          {uploadProgress && (
+            <div className="upload-progress">
+              <div className="spinner-small"></div>
+              <span>{uploadProgress}</span>
+            </div>
+          )}
         </div>
 
         {error && (
           <div className="error-message">
-            ⚠️ {error}
+            <i className="bi bi-exclamation-triangle"></i> {error}
           </div>
         )}
 
         {project && (
           <div className="project-info">
             <div className="project-card">
-              <div className="project-icon">📦</div>
+              <div className="project-icon"><i className="bi bi-box-seam"></i></div>
               <div className="project-details">
                 <h4>{project.name}</h4>
                 <p className="project-path">{project.path}</p>
@@ -228,9 +283,6 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                 placeholder="http://localhost:3001"
               />
             </div>
-            <div className="config-info" style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>
-              ⚠️ Asegúrate de que el servidor del backend esté corriendo en esta URL antes de ejecutar las pruebas
-            </div>
             
             {project.hasServer && (
               <div className="config-row">
@@ -239,7 +291,7 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                   onClick={handleStartServer}
                   disabled={loading || testStatus.running || serverStatus.running}
                 >
-                  {serverStatus.running ? '✅ Server Running' : '🚀 Start Project Server'}
+                  {serverStatus.running ? <><i className="bi bi-check-circle-fill"></i> Server Running</> : <><i className="bi bi-rocket-takeoff"></i> Start Project Server</>}
                 </button>
                 {serverStatus.running && (
                   <span className="server-status">Running on port {serverStatus.port}</span>
@@ -262,11 +314,11 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                 onChange={(e) => setSelectedTestType(e.target.value)}
                 disabled={testStatus.running}
               >
-                <option value="all">🔄 All Tests</option>
-                <option value="functional">✅ Functional Tests</option>
-                <option value="non-functional">⚙️ Non-Functional Tests</option>
-                <option value="load">📊 Load Tests</option>
-                <option value="stress">💥 Stress Tests</option>
+                <option value="all">All Tests</option>
+                <option value="functional">Functional Tests</option>
+                <option value="non-functional">Non-Functional Tests</option>
+                <option value="load">Load Tests</option>
+                <option value="stress">Stress Tests</option>
               </select>
             </div>
             
@@ -277,14 +329,14 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
                   onClick={handleRunTests}
                   disabled={loading}
                 >
-                  ▶️ Run Tests
+                  <i className="bi bi-play-fill"></i> Run Tests
                 </button>
               ) : (
                 <button 
                   className="btn btn-danger btn-large"
                   onClick={handleCancelTests}
                 >
-                  ⏹️ Cancel Tests
+                  <i className="bi bi-stop-fill"></i> Cancel Tests
                 </button>
               )}
             </div>
@@ -319,7 +371,7 @@ function ProjectLoader({ onProjectLoaded, onTestsComplete }) {
       {/* Área de ayuda */}
       {!project && (
         <div className="help-section">
-          <h3>💡 Getting Started</h3>
+          <h3><i className="bi bi-lightbulb"></i> Getting Started</h3>
           <ol>
             <li>Click "Browse for Project" to select a Node.js project folder</li>
             <li>Or enter the full path to your project manually</li>

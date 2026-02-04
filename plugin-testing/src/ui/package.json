@@ -15,7 +15,7 @@
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
     "recharts": "^3.7.0",
-    "sqlite3": "^5.1.6",
+    "sqlite3": "^5.1.7",
     "unzipper": "^0.12.3"
   },
   "devDependencies": {
@@ -24,8 +24,9 @@
   "scripts": {
     "react-start": "react-scripts start",
     "react-build": "react-scripts build",
-    "start": "node launcher.js",
-    "build": "react-scripts build && npm run pack-linux",
+    "start": "node report-server.js",
+    "build": "react-scripts build",
+    "build:all": "react-scripts build && npm run pack-linux",
     "pack-linux": "pkg launcher.js --output testing-plugin --target node18-linux-x64 --compress Brotli"
   },
   "eslintConfig": {

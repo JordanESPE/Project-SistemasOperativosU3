@@ -48,7 +48,7 @@ let isRunningTests = false;
 
 app.use(express.json({ limit: '50mb' }));
 // Servir archivos estáticos desde la carpeta build del proyecto
-const buildPath = '/home/jordan/Escritorio/PROYECTO P3 OPERATIVOS/plugin-testing/src/ui/build';
+const buildPath = path.join(__dirname, 'public', 'build');
 app.use(express.static(buildPath));
 
 // API: Obtener último reporte
@@ -147,24 +147,9 @@ const server = http.createServer(app);
 
 server.listen(PORT, () => {
   console.log(`\n Server running on http://localhost:${PORT}`);
-  console.log(' Launching browser...\n');
-  
-  // Iniciar servidor de tienda-ecommerce en paralelo
-  console.log('→ Starting e-commerce server...');
-  startEcommerceServer();
-  
-  // Esperar a que ambos servidores estén listos
-  setTimeout(() => {
-    // Abrir navegador automáticamente (Linux)
-    const { exec } = require('child_process');
-    const url = `http://localhost:${PORT}`;
-    
-    exec(`xdg-open "${url}" 2>/dev/null || true`, { shell: '/bin/bash' });
-    
-    // Ejecutar todas las pruebas automáticamente
-    console.log('Running tests...\n');
-    runTests();
-  }, 2000);
+  console.log(' UI is ready!\n');
+  console.log(' → Load a project from the UI to run tests');
+  console.log(' → Tests will run on-demand when you upload a ZIP file\n');
 });
 
 function startEcommerceServer() {

@@ -10,7 +10,12 @@ console.log(`\n[CONFIG] Testing against: ${baseUrl}`);
 console.log(`[CONFIG] BASE_URL env: ${process.env.BASE_URL || '(not set, using default)'}\n`);
 
 async function main() {
-  const executor = new TestExecutor(baseUrl);
+  // Leer rutas detectadas del environment (si existen)
+  const detectedRoutes = process.env.DETECTED_ROUTES 
+    ? JSON.parse(process.env.DETECTED_ROUTES) 
+    : [];
+  
+  const executor = new TestExecutor(baseUrl, detectedRoutes);
 
   // Sin argumentos o --all: ejecutar todo
   if (args.length === 0 || args.includes('--all')) {

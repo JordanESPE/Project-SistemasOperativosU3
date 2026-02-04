@@ -42,6 +42,12 @@ function SummaryCards({ data }) {
               <span className="label">Failed:</span>
               <span className="value failed">{data.overall.totalFailed}</span>
             </div>
+            {data.overall.totalWarnings > 0 && (
+              <div className="stat">
+                <span className="label">Warnings:</span>
+                <span className="value warning">{data.overall.totalWarnings}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

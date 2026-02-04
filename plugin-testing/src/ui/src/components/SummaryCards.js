@@ -10,17 +10,19 @@ function SummaryCards({ data }) {
         <div key={index} className="card">
           <h3>{test.type.replace(/_/g, ' ')}</h3>
           <div className="card-content">
-            <div className="stat">
-              <span className="label">Result:</span>
-              <span className="value">{test.status}</span>
-            </div>
+            {(test.type === 'FUNCTIONAL_TESTS' || test.type === 'NON_FUNCTIONAL_TESTS') && (
+              <div className="stat">
+                <span className="label">Result:</span>
+                <span className="value">{test.status || `${test.passed || 0}/${test.total || 0}`}</span>
+              </div>
+            )}
             <div className="stat">
               <span className="label">Success Rate:</span>
-              <span className="value success">{test.successRate}</span>
+              <span className="value success">{test.successRate || 'N/A'}</span>
             </div>
             <div className="stat">
               <span className="label">Duration:</span>
-              <span className="value">{test.duration}</span>
+              <span className="value">{test.duration || 'N/A'}</span>
             </div>
           </div>
         </div>
@@ -42,6 +44,12 @@ function SummaryCards({ data }) {
               <span className="label">Failed:</span>
               <span className="value failed">{data.overall.totalFailed}</span>
             </div>
+            {data.overall.totalWarnings > 0 && (
+              <div className="stat">
+                <span className="label">Warnings:</span>
+                <span className="value warning">{data.overall.totalWarnings}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -52,12 +52,14 @@ class ReportGenerator {
     let totalTests = 0;
     let totalPassed = 0;
     let totalFailed = 0;
+    let totalWarnings = 0;
 
     testResults.forEach(r => {
       if (r.type === 'FUNCTIONAL_TESTS' || r.type === 'NON_FUNCTIONAL_TESTS') {
         totalTests += r.summary.total || 0;
         totalPassed += r.summary.passed || 0;
         totalFailed += r.summary.failed || 0;
+        totalWarnings += r.summary.warnings || 0;
       } else if (r.type === 'LOAD_TEST') {
         totalTests += 1;
         const errorRate = parseFloat(r.summary.errorRate) || 0;
@@ -86,7 +88,8 @@ class ReportGenerator {
       overall: {
         totalTests,
         totalPassed,
-        totalFailed
+        totalFailed,
+        totalWarnings
       }
     };
   }
@@ -233,9 +236,9 @@ class ReportGenerator {
 
     // Tarjetas de estadísticas
     const startY = doc.y;
-    this.addStatCard(doc, 'Total de Pruebas', totalTests.toString(), '#4A90E2', 50, startY);
-    this.addStatCard(doc, 'Exitosas', totalPassed.toString(), '#2ECC71', 230, startY);
-    this.addStatCard(doc, 'Fallidas', totalFailed.toString(), '#E74C3C', 410, startY);
+    this.addStatCard(doc, 'Total de Pruebas', totalTests.toString(), '#000000', 50, startY);
+    this.addStatCard(doc, 'Exitosas', totalPassed.toString(), '#198754', 210, startY);
+    this.addStatCard(doc, 'Fallidas', totalFailed.toString(), '#dc3545', 370, startY);
     
     doc.y = startY + 85;
 
@@ -243,9 +246,9 @@ class ReportGenerator {
     const successPercent = parseFloat(overallSuccessRate) || 0;
     const barStartY = doc.y;
     
-    doc.fontSize(12).font('Helvetica-Bold').text('Tasa de Exito General:', 50, barStartY);
+    doc.fontSize(13).font('Helvetica-Bold').text('Tasa de Exito General:', 50, barStartY);
     
-    const barWidth = 350;
+    const barWidth = 240;
     const barHeight = 25;
     const fillWidth = Math.max(0, (successPercent / 100) * barWidth);
     const barX = 240;
@@ -257,16 +260,16 @@ class ReportGenerator {
     
     // Barra de progreso solo si hay progreso
     if (fillWidth > 0) {
-      const barColor = successPercent >= 80 ? '#2ECC71' : successPercent >= 50 ? '#F39C12' : '#E74C3C';
+      const barColor = successPercent >= 80 ? '#198754' : successPercent >= 50 ? '#f39c12' : '#dc3545';
       doc.rect(barX, barY, fillWidth, barHeight)
          .fill(barColor);
     }
     
     // Texto del porcentaje - siempre visible
-    doc.fillColor('#2C3E50')
-       .fontSize(12)
+    doc.fillColor('#000000')
+       .fontSize(13)
        .font('Helvetica-Bold')
-       .text(overallSuccessRate, barX + barWidth + 10, barStartY);
+       .text(overallSuccessRate, barX + barWidth + 8, barStartY, { lineBreak: false });
     
     doc.fillColor('#000000');
     doc.moveDown(2);
@@ -312,10 +315,10 @@ class ReportGenerator {
     };
 
     const typeColors = {
-      'FUNCTIONAL_TESTS': '#2ECC71',
-      'NON_FUNCTIONAL_TESTS': '#3498DB',
-      'LOAD_TEST': '#F39C12',
-      'STRESS_TEST': '#E74C3C'
+      'FUNCTIONAL_TESTS': '#198754',
+      'NON_FUNCTIONAL_TESTS': '#000000',
+      'LOAD_TEST': '#f39c12',
+      'STRESS_TEST': '#dc3545'
     };
 
     const color = typeColors[testResult.type] || '#95A5A6';
@@ -326,7 +329,7 @@ class ReportGenerator {
     
     const titleY = doc.y + 12;
     doc.fillColor('#FFFFFF')
-       .fontSize(18)
+       .fontSize(16)
        .font('Helvetica-Bold')
        .text(typeLabels[testResult.type] || testResult.type, 60, titleY);
     
@@ -338,17 +341,17 @@ class ReportGenerator {
     
     // Box con información resumida
     this.addInfoBox(doc, 'Informacion General');
-    doc.fontSize(10).font('Helvetica');
+    doc.fontSize(11).font('Helvetica');
     
     if (testResult.type === 'FUNCTIONAL_TESTS' || testResult.type === 'NON_FUNCTIONAL_TESTS') {
       this.addInfoLine(doc, 'Total de Pruebas', summary.total);
-      this.addInfoLine(doc, 'Exitosas', summary.passed, '#2ECC71');
-      this.addInfoLine(doc, 'Fallidas', summary.failed, '#E74C3C');
+      this.addInfoLine(doc, 'Exitosas', summary.passed, '#198754');
+      this.addInfoLine(doc, 'Fallidas', summary.failed, '#dc3545');
       this.addInfoLine(doc, 'Tasa de Éxito', summary.successRate);
     } else if (testResult.type === 'LOAD_TEST') {
       this.addInfoLine(doc, 'Total de Solicitudes', summary.totalRequests);
-      this.addInfoLine(doc, 'Exitosas', summary.successfulRequests, '#2ECC71');
-      this.addInfoLine(doc, 'Fallidas', summary.failedRequests, '#E74C3C');
+      this.addInfoLine(doc, 'Exitosas', summary.successfulRequests, '#198754');
+      this.addInfoLine(doc, 'Fallidas', summary.failedRequests, '#dc3545');
       this.addInfoLine(doc, 'Tasa de Error', summary.errorRate);
       this.addInfoLine(doc, 'Tiempo Promedio', testResult.metrics?.avgResponseTime);
       this.addInfoLine(doc, 'Solicitudes/seg', testResult.metrics?.requestsPerSecond);
@@ -368,20 +371,20 @@ class ReportGenerator {
       this.addInfoBox(doc, 'Detalles de Pruebas');
       doc.moveDown(0.3);
 
-      const tableData = testResult.details.map(detail => [
-        detail.name || '',
-        detail.status || '',
-        (detail.details || '').substring(0, 40) + (detail.details?.length > 40 ? '...' : '')
-      ]);
+      const tableData = testResult.details.map(detail => {
+        const detailsText = detail.details || '';
+        // Truncar a 35 caracteres para evitar desbordamiento
+        const truncatedDetails = detailsText.length > 35 ? detailsText.substring(0, 35) + '...' : detailsText;
+        
+        return [
+          detail.name || '',
+          detail.status || '',
+          truncatedDetails
+        ];
+      });
 
-      // Mostrar solo los primeros 5 para evitar páginas extras
-      this.addStyledTable(doc, ['Prueba', 'Estado', 'Detalles'], tableData.slice(0, 5));
-
-      if (tableData.length > 5) {
-        doc.moveDown(0.3);
-        doc.fontSize(9).fillColor('#7F8C8D').text(`... y ${tableData.length - 5} pruebas más (total: ${tableData.length})`, 55, doc.y);
-        doc.fillColor('#000000');
-      }
+      // Mostrar todas las pruebas con anchos de columna específicos
+      this.addDetailsTable(doc, ['Prueba', 'Estado', 'Detalles'], tableData);
     }
 
     // Métricas adicionales para load/stress
@@ -437,26 +440,133 @@ class ReportGenerator {
   // Nuevos métodos para mejorar la estética
 
   addStyledTable(doc, headers, rows) {
-    // Tabla simple sin posicionamiento absoluto
-    const colWidth = (doc.page.width - 100) / headers.length;
+    const startX = 55;
+    const tableWidth = doc.page.width - 110;
+    const colWidths = [
+      tableWidth * 0.35,  // Tipo de Prueba - 35%
+      tableWidth * 0.20,  // Resultado - 20%
+      tableWidth * 0.25,  // Tasa de Éxito - 25%
+      tableWidth * 0.20   // Duración - 20%
+    ];
     
-    // Encabezados en una sola línea
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#4A90E2');
-    let headerLine = headers.join('  |  ');
-    doc.text(headerLine, 55);
+    // Encabezados
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000000');
+    const headerY = doc.y;
+    let currentX = startX;
+    headers.forEach((header, i) => {
+      doc.text(header, currentX, headerY, { width: colWidths[i] - 10, align: 'left', lineBreak: false });
+      currentX += colWidths[i];
+    });
+    
+    // Mover después de los encabezados
+    doc.y = headerY + 15;
     
     // Línea separadora
-    doc.moveDown(0.2);
-    doc.strokeColor('#4A90E2').lineWidth(1);
-    doc.moveTo(55, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
     doc.moveDown(0.3);
+    const lineY = doc.y;
+    doc.strokeColor('#000000').lineWidth(1);
+    doc.moveTo(startX, lineY).lineTo(startX + tableWidth, lineY).stroke();
+    doc.moveDown(0.4);
     
     // Filas
-    doc.font('Helvetica').fontSize(8).fillColor('#2C3E50');
+    doc.font('Helvetica').fontSize(10).fillColor('#000000');
+    
     rows.forEach((row, idx) => {
-      const rowText = row.map(cell => String(cell || '-').substring(0, 25)).join('  |  ');
-      doc.text(rowText, 55);
-      doc.moveDown(0.1);
+      const rowY = doc.y;
+      currentX = startX;
+      let maxHeight = 0;
+      
+      // Primera pasada: calcular altura máxima de la fila
+      row.forEach((cell, i) => {
+        const cellText = String(cell || '-');
+        const height = doc.heightOfString(cellText, { 
+          width: colWidths[i] - 10, 
+          align: 'left'
+        });
+        maxHeight = Math.max(maxHeight, height);
+      });
+      
+      // Segunda pasada: renderizar celdas
+      row.forEach((cell, i) => {
+        const cellText = String(cell || '-');
+        doc.text(cellText, currentX, rowY, { 
+          width: colWidths[i] - 10, 
+          align: 'left',
+          height: maxHeight,
+          ellipsis: true
+        });
+        currentX += colWidths[i];
+      });
+      
+      // Mover a la siguiente fila
+      doc.y = rowY + maxHeight + 3;
+    });
+    
+    doc.fillColor('#000000');
+    doc.moveDown(0.3);
+  }
+
+  addDetailsTable(doc, headers, rows) {
+    const startX = 55;
+    const tableWidth = doc.page.width - 110;
+    // Anchos optimizados para tabla de detalles: Prueba, Estado, Detalles
+    const colWidths = [
+      tableWidth * 0.30,  // Prueba - 30%
+      tableWidth * 0.15,  // Estado - 15%
+      tableWidth * 0.55   // Detalles - 55%
+    ];
+    
+    // Encabezados
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000000');
+    const headerY = doc.y;
+    let currentX = startX;
+    headers.forEach((header, i) => {
+      doc.text(header, currentX, headerY, { width: colWidths[i] - 10, align: 'left', lineBreak: false });
+      currentX += colWidths[i];
+    });
+    
+    // Mover después de los encabezados
+    doc.y = headerY + 15;
+    
+    // Línea separadora
+    doc.moveDown(0.3);
+    const lineY = doc.y;
+    doc.strokeColor('#000000').lineWidth(1);
+    doc.moveTo(startX, lineY).lineTo(startX + tableWidth, lineY).stroke();
+    doc.moveDown(0.4);
+    
+    // Filas
+    doc.font('Helvetica').fontSize(10).fillColor('#000000');
+    
+    rows.forEach((row, idx) => {
+      const rowY = doc.y;
+      currentX = startX;
+      let maxHeight = 0;
+      
+      // Primera pasada: calcular altura máxima de la fila
+      row.forEach((cell, i) => {
+        const cellText = String(cell || '-');
+        const height = doc.heightOfString(cellText, { 
+          width: colWidths[i] - 10, 
+          align: 'left'
+        });
+        maxHeight = Math.max(maxHeight, height);
+      });
+      
+      // Segunda pasada: renderizar celdas
+      row.forEach((cell, i) => {
+        const cellText = String(cell || '-');
+        doc.text(cellText, currentX, rowY, { 
+          width: colWidths[i] - 10, 
+          align: 'left',
+          height: maxHeight,
+          ellipsis: true
+        });
+        currentX += colWidths[i];
+      });
+      
+      // Mover a la siguiente fila
+      doc.y = rowY + maxHeight + 3;
     });
     
     doc.fillColor('#000000');
@@ -465,7 +575,7 @@ class ReportGenerator {
 
   addStatCard(doc, label, value, color, x = 50, y = null) {
     const cardY = y !== null ? y : doc.y;
-    const width = 170;
+    const width = 150;
     const height = 70;
 
     // Sombra
@@ -504,10 +614,10 @@ class ReportGenerator {
     doc.moveDown(0.3);
   }
 
-  addInfoLine(doc, label, value, color = '#2C3E50') {
-    doc.fontSize(8)
+  addInfoLine(doc, label, value, color = '#000000') {
+    doc.fontSize(10)
        .font('Helvetica-Bold')
-       .fillColor('#7F8C8D')
+       .fillColor('#000000')
        .text('  • ' + label + ': ', 55, doc.y, { continued: true })
        .font('Helvetica')
        .fillColor(color)
@@ -534,7 +644,7 @@ class ReportGenerator {
   addRecommendations(doc, testResults) {
     // Título de la sección
     doc.rect(50, doc.y, doc.page.width - 100, 40)
-       .fillAndStroke('#9B59B6', '#9B59B6');
+       .fillAndStroke('#000000', '#000000');
     
     const titleY = doc.y + 12;
     doc.fillColor('#FFFFFF')
@@ -554,17 +664,17 @@ class ReportGenerator {
       doc.fontSize(9).font('Helvetica');
       
       recommendations.errors.slice(0, 3).forEach((error, index) => {
-        doc.fillColor('#E74C3C')
-           .fontSize(9)
+        doc.fillColor('#000000')
+           .fontSize(10)
            .font('Helvetica-Bold')
            .text(`${index + 1}. ${error.title}`, { continued: false });
         
-        doc.fillColor('#2C3E50')
-           .fontSize(8)
+        doc.fillColor('#000000')
+           .fontSize(10)
            .font('Helvetica')
            .text(error.description, { width: doc.page.width - 120 });
         
-        doc.moveDown(0.3);
+        doc.moveDown(0.5);
       });
       
       doc.moveDown(0.5);
@@ -576,17 +686,17 @@ class ReportGenerator {
       doc.fontSize(9).font('Helvetica');
       
       recommendations.improvements.slice(0, 3).forEach((improvement, index) => {
-        doc.fillColor('#2ECC71')
-           .fontSize(9)
+        doc.fillColor('#000000')
+           .fontSize(10)
            .font('Helvetica-Bold')
            .text(`${index + 1}. ${improvement.title}`, { continued: false });
         
-        doc.fillColor('#2C3E50')
-           .fontSize(8)
+        doc.fillColor('#000000')
+           .fontSize(10)
            .font('Helvetica')
            .text(improvement.description, { width: doc.page.width - 120 });
         
-        doc.moveDown(0.3);
+        doc.moveDown(0.5);
       });
       
       doc.moveDown(0.5);
@@ -598,20 +708,20 @@ class ReportGenerator {
       doc.fontSize(9).font('Helvetica');
       
       recommendations.actions.slice(0, 3).forEach((action, index) => {
-        const priorityColor = action.priority === 'ALTA' ? '#E74C3C' : 
-                             action.priority === 'MEDIA' ? '#F39C12' : '#3498DB';
+        const priorityColor = action.priority === 'ALTA' ? '#dc3545' : 
+                             action.priority === 'MEDIA' ? '#f39c12' : '#198754';
         
         doc.fillColor(priorityColor)
-           .fontSize(9)
+           .fontSize(10)
            .font('Helvetica-Bold')
            .text(`[${action.priority}] ${action.title}`, { continued: false });
         
-        doc.fillColor('#2C3E50')
-           .fontSize(8)
+        doc.fillColor('#000000')
+           .fontSize(10)
            .font('Helvetica')
            .text(action.description, { width: doc.page.width - 120 });
         
-        doc.moveDown(0.3);
+        doc.moveDown(0.5);
       });
     }
 

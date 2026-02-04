@@ -6,6 +6,7 @@ const { spawn, exec } = require('child_process');
 const PDFDocument = require('pdfkit');
 const multer = require('multer');
 const unzipper = require('unzipper');
+const axios = require('axios');
 
 // Importar el generador de reportes profesional
 const ReportGenerator = require('../plugin/modules/report-generator/generator');
@@ -51,6 +52,36 @@ app.use(express.json({ limit: '50mb' }));
 let loadedProject = null;
 let testProcess = null;
 let testStatus = { running: false, progress: '', logs: [] };
+
+/**
+ * Auto-detecta la URL funcional probando localhost y 127.0.0.1
+ * @param {number} port - Puerto del servidor
+ * @returns {Promise<string>} - URL funcional
+ */
+async function autoDetectUrl(port) {
+  const hosts = ['localhost', '127.0.0.1'];
+  
+  for (const host of hosts) {
+    const url = `http://${host}:${port}`;
+    try {
+      // Intentar conexión con timeout corto
+      await axios.get(url, { timeout: 2000 });
+      console.log(`[URL DETECT] ✓ ${url} is reachable`);
+      return url;
+    } catch (error) {
+      // 401/403 también significa que el servidor está activo
+      if (error.response && (error.response.status === 401 || error.response.status === 403 || error.response.status === 404)) {
+        console.log(`[URL DETECT] ✓ ${url} is reachable (server responds with ${error.response.status})`);
+        return url;
+      }
+      console.log(`[URL DETECT] ✗ ${url} failed: ${error.message}`);
+    }
+  }
+  
+  // Si ninguna funciona, usar localhost por defecto
+  console.log(`[URL DETECT] Using default: http://localhost:${port}`);
+  return `http://localhost:${port}`;
+}
 
 // Endpoint para obtener el último reporte
 app.get('/api/latest-report', (req, res) => {
@@ -191,7 +222,7 @@ app.get('/api/browse', (req, res) => {
 });
 
 // Cargar/Seleccionar un proyecto
-app.post('/api/project/load', (req, res) => {
+app.post('/api/project/load', async (req, res) => {
   try {
     const { projectPath } = req.body;
     
@@ -255,6 +286,27 @@ app.post('/api/project/load', (req, res) => {
     }
 
     console.log(`[LOAD PROJECT] Project info:`, JSON.stringify(projectInfo, null, 2));
+
+    // Detectar rutas del backend automáticamente
+    if (projectInfo.hasServer) {
+      try {
+        const RouteDetector = require('../plugin/modules/route-detector/detector');
+        const detector = new RouteDetector(projectPath);
+        const routes = await detector.detectRoutes(projectInfo.serverFile);
+        
+        projectInfo.detectedRoutes = routes;
+        projectInfo.testRoutes = detector.generateTestRoutes();
+        
+        console.log(`[LOAD PROJECT] Detected ${routes.length} routes`);
+        if (routes.length > 0) {
+          console.log(`[LOAD PROJECT] Sample routes:`, routes.slice(0, 5));
+        }
+      } catch (error) {
+        console.error(`[LOAD PROJECT] Route detection error:`, error.message);
+        projectInfo.detectedRoutes = [];
+        projectInfo.testRoutes = null;
+      }
+    }
 
     // Buscar archivos HTML (proyecto frontend)
     const htmlFiles = ['index.html', 'src/index.html', 'public/index.html', 'src/frontend/index.html'];
@@ -458,7 +510,13 @@ app.post('/api/project/start-server', async (req, res) => {
 
     // Verificar si ya hay algo corriendo en ese puerto
     const checkPort = await new Promise((resolve) => {
-      exec(`lsof -i :${projectPort}`, (error, stdout) => {
+      // Usar netstat para Windows, lsof para Unix
+      const isWindows = process.platform === 'win32';
+      const command = isWindows 
+        ? `netstat -ano | findstr :${projectPort}`
+        : `lsof -i :${projectPort}`;
+      
+      exec(command, (error, stdout) => {
         resolve(stdout.trim().length > 0);
       });
     });
@@ -802,20 +860,29 @@ app.post('/api/project/start-server', async (req, res) => {
 });
 
 // Ejecutar pruebas
-app.post('/api/project/run-tests', (req, res) => {
+app.post('/api/project/run-tests', async (req, res) => {
   try {
     if (testStatus.running) {
       return res.status(400).json({ error: 'Tests already running' });
     }
 
     const { testType, baseUrl } = req.body;
-    const targetUrl = baseUrl || `http://localhost:${loadedProject?.port || 3001}`;
+    const port = loadedProject?.port || 3001;
+    
+    // Opción 3: Auto-detectar URL funcional si no se proporciona una baseUrl
+    let targetUrl;
+    if (baseUrl) {
+      targetUrl = baseUrl;
+    } else {
+      console.log('[RUN TESTS] Auto-detecting functional URL...');
+      targetUrl = await autoDetectUrl(port);
+    }
 
     // Log para depuración
     console.log('\n========================================');
     console.log('[DEBUG] Run Tests Request:');
     console.log(`  - Received baseUrl: ${baseUrl}`);
-    console.log(`  - Using targetUrl: ${targetUrl}`);
+    console.log(`  - Auto-detected URL: ${targetUrl}`);
     console.log(`  - loadedProject port: ${loadedProject?.port}`);
     console.log('========================================\n');
 
@@ -824,8 +891,20 @@ app.post('/api/project/run-tests', (req, res) => {
     const cliPath = path.join(PLUGIN_DIR, 'cli.js');
     const args = testType ? [`--${testType}`] : ['--all'];
 
+    // Preparar environment con rutas detectadas
+    const testEnv = { 
+      ...process.env, 
+      BASE_URL: targetUrl
+    };
+    
+    // Agregar rutas detectadas si existen
+    if (loadedProject?.detectedRoutes && loadedProject.detectedRoutes.length > 0) {
+      testEnv.DETECTED_ROUTES = JSON.stringify(loadedProject.detectedRoutes);
+      console.log(`[RUN TESTS] Using ${loadedProject.detectedRoutes.length} detected routes`);
+    }
+
     testProcess = spawn('node', [cliPath, ...args], {
-      env: { ...process.env, BASE_URL: targetUrl },
+      env: testEnv,
       cwd: path.join(__dirname, '../..')
     });
 
